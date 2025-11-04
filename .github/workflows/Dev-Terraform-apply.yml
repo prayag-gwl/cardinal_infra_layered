@@ -1,0 +1,62 @@
+name: Dev Terraform Apply
+
+on:
+  push:
+    branches: [ dev ]
+    paths:
+      - '**/*.tf'
+      - '.github/workflows/Dev-Terraform-apply.yml'
+  workflow_dispatch:
+
+env:
+  TF_IN_AUTOMATION: true
+  AWS_REGION: us-east-1
+  TF_WORKING_DIR: stacks/dev
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform init -input=false
+
+      - name: Validate
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform validate
+
+      - name: Plan
+        id: plan
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform plan -no-color -input=false -out=tfplan
+
+      - name: Upload plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: stacks/dev/tfplan
+
+      - name: Apply (auto-approve on dev)
+        if: github.ref == 'refs/heads/dev'
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform apply -input=false -auto-approve tfplan
+
