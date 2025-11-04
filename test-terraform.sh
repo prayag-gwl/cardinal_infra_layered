@@ -3,7 +3,7 @@
 
 set -e
 
-TERRAFORM_VERSION="1.9.0"
+TERRAFORM_VERSION="1.13.4"
 WORK_DIR="/workspace"
 
 echo "🧪 Testing Terraform configuration..."
