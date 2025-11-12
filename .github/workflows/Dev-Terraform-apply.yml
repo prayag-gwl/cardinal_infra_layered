@@ -1,8 +1,8 @@
-name: Dev Terraform Apply
+name: Develop Terraform Apply
 
 on:
   push:
-    branches: [ dev ]
+    branches: [ develop ]
     paths:
       - '**/*.tf'
       - '.github/workflows/Dev-Terraform-apply.yml'
@@ -56,8 +56,7 @@ jobs:
           name: tfplan
           path: stacks/dev/tfplan
 
-      - name: Apply (auto-approve on dev)
-        if: github.ref == 'refs/heads/dev'
+      - name: Apply (auto-approve on develop)
+        if: github.ref == 'refs/heads/develop'
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform apply -input=false -auto-approve tfplan
-
