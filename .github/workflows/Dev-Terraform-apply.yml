@@ -50,13 +50,26 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform plan -no-color -input=false -out=tfplan
 
+      - name: Inspect plan (echo summary only)
+        id: inspect
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform show -json tfplan > tfplan.json
+          CREATES=$(jq '[.resource_changes[] | select(.change.actions[] | contains("create"))] | length' tfplan.json)
+          UPDATES=$(jq '[.resource_changes[] | select(.change.actions[] | contains("update"))] | length' tfplan.json)
+          DELETES=$(jq '[.resource_changes[] | select(.change.actions[] | contains("delete"))] | length' tfplan.json)
+
+          echo "Plan summary — creates: $CREATES, updates: $UPDATES, deletes: $DELETES"
+
+          if [ "$CREATES" -eq 0 ] && [ "$UPDATES" -eq 0 ] && [ "$DELETES" -eq 0 ]; then
+            echo "::notice ::PLAN RESULT: No changes to apply."
+          else
+            echo "::warning ::PLAN RESULT: Changes detected."
+            jq -r '.resource_changes[] | "\(.type) \(.name): actions=\(.change.actions)"' tfplan.json
+          fi
+
       - name: Upload plan
         uses: actions/upload-artifact@v4
         with:
           name: tfplan
           path: stacks/dev/tfplan
-
-      - name: Apply (auto-approve on develop)
-        if: github.ref == 'refs/heads/develop'
-        working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform apply -input=false -auto-approve tfplan
