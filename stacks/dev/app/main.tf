@@ -42,8 +42,10 @@ module "alb" {
   source                = "../../../modules/alb"
   name                  = "${var.project}-${var.environment}-app-alb"
   vpc_id                = var.vpc_id
-  public_subnet_ids     = var.public_subnet_ids
-  alb_security_group_id = var.alb_security_group_id
+  subnet_ids            = var.public_subnet_ids
+  security_group_ids    = [var.alb_security_group_id]
+  enable_https_listener = false
+  enable_http_redirect  = false
   frontend_health_path  = var.frontend_health_path
   backend_health_path   = "/health"  # Default for single service
   tags                  = module.common.tags
@@ -52,6 +54,7 @@ module "alb" {
 module "frontend_service" {
   source            = "../../../modules/ecs-service"
   cluster_id        = module.ecs_cluster.id
+  cluster_name      = module.ecs_cluster.name
   service_name      = "${var.project}-${var.environment}-frontend"
   image             = var.frontend_image
   container_name    = "${var.project}-frontend"
@@ -61,6 +64,9 @@ module "frontend_service" {
   security_group_id = var.ecs_service_sg_id
   target_group_arn  = module.alb.tg_frontend_arn
   environment_vars  = var.frontend_env
+  desired_count     = 1
+  autoscaling_enabled = false
+  assign_public_ip  = true
   tags              = module.common.tags
 }
 

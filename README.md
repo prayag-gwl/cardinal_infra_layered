@@ -2,8 +2,9 @@
 Terraform modules and environment stacks for AWS.
 
 ### Layout
-- `modules/`: reusable modules (ALB, ECS cluster/service, ECR, logging, common).
+- `modules/`: reusable modules (networking, ALB, ECS cluster/service, ECR, logging, RDS, backup, monitoring, common).
 - `stacks/dev/`: dev environment composition.
+- `stacks/prod/`: production-grade stack (multi-AZ networking, dual ALBs, RDS, backups, monitoring).
 - `.github/workflows/Dev-Terraform-apply.yml`: CI plan/apply for `develop`.
 - `.github/workflows/Bootstrap-state-backend.yml`: manual workflow to create/refresh remote state backend.
 - `bootstrap/state-backend/`: one-time stack to provision the remote state bucket and lock table.
@@ -12,13 +13,64 @@ Terraform modules and environment stacks for AWS.
 - Terraform >= 1.5
 - AWS role assumable by GitHub OIDC (`AWS_ROLE_ARN` secret).
 
-### Local
+### Dev stack (local)
 ```bash
 cd stacks/dev
 terraform init
 terraform plan -var-file="terraform.tfvars"
 terraform apply -auto-approve -var-file="terraform.tfvars"
 ```
+
+`terraform.tfvars` must supply the VPC/subnet/security group IDs that already exist in AWS (the dev stack does not create networking).
+
+### Production stack
+
+The production stack provisions the full architecture described in `Cardinal_Prod_Infra_Plan.txt`:
+
+- Multi-AZ VPC with public + private subnets, NAT gateways, flow logs.
+- Public HTTPS ALB (frontend) + internal HTTPS ALB (backend) with WAF option and S3 access logs.
+- ECS cluster with Fargate & Spot capacity providers, ECS Exec, target-tracking autoscaling (CPU 60%, Memory 70%), CloudWatch logging.
+- ECR repositories, CloudWatch dashboards + alarms, SNS alerting.
+- Amazon RDS PostgreSQL (multi-AZ, gp3, Performance Insights, KMS encryption, IAM auth).
+- Secrets Manager secret for DB credentials.
+- AWS Backup vault + plan (daily full, hourly incremental) with SNS notifications.
+
+Required inputs (pass via `terraform.tfvars` or CLI):
+
+```hcl
+aws_region             = "us-west-1"
+project                = "cardinal"
+environment            = "prod"
+azs                    = ["us-west-1a", "us-west-1c"]
+public_subnet_cidrs    = ["10.0.1.0/24", "10.0.3.0/24"]
+private_subnet_cidrs   = ["10.0.101.0/24", "10.0.103.0/24"]
+frontend_image         = "public.ecr.aws/<acct>/frontend:prod"
+backend_image          = "public.ecr.aws/<acct>/backend:prod"
+frontend_certificate_arn = "arn:aws:acm:us-west-1:123456789012:certificate/..."
+backend_certificate_arn  = "arn:aws:acm:us-west-1:123456789012:certificate/..."
+db_master_username     = "cardinal_admin"
+db_master_password     = "super-secure-password"
+alarm_emails           = ["alerts@example.com"]
+```
+
+Optional inputs:
+
+- `backend_health_path`, `frontend_health_path`
+- `waf_web_acl_arn` to attach an existing AWS WAFv2 Web ACL
+- `db_kms_key_arn` to reuse a customer-managed CMK (otherwise one is created)
+- `backup_copy_actions` for cross-region backup copies
+- `frontend_env`, `backend_env` maps for container environment variables
+
+Usage:
+
+```bash
+cd stacks/prod
+terraform init
+terraform plan -var-file="terraform.tfvars"
+terraform apply -auto-approve -var-file="terraform.tfvars"
+```
+
+Outputs include ALB DNS names, ECS service names, the RDS endpoint, the Secrets Manager ARN storing DB credentials, backup vault ARN, and the CloudWatch dashboard name.
 
 ### Remote state bootstrap
 
@@ -44,4 +96,10 @@ terraform apply -auto-approve \
   -var 'region=us-west-1'
 ```
 Add `-var 'enable_kms=true'` to create a dedicated KMS key.
+
+After the backend bucket/table exist and secrets are configured, run:
+
+- `Bootstrap Terraform Backend` workflow for one-time backend provisioning (completed).
+- `Develop Terraform Apply` workflow for CI `plan` + summary.
+- `stacks/prod` manually (or wire a production workflow) when you are ready to deploy infrastructure.
 
