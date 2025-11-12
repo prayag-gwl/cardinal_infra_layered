@@ -10,8 +10,8 @@ on:
 
 env:
   TF_IN_AUTOMATION: true
-  AWS_REGION: us-east-1
-  TF_WORKING_DIR: stacks/dev
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  TF_WORKING_DIR: stacks/prod
   TF_BACKEND_BUCKET: ${{ secrets.TF_BACKEND_BUCKET }}
   TF_BACKEND_KEY: ${{ secrets.TF_BACKEND_KEY }}
   TF_BACKEND_REGION: ${{ secrets.TF_BACKEND_REGION }}
@@ -41,6 +41,78 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Render Terraform variable file
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        env:
+          PROJECT: ${{ vars.PROJECT }}
+          ENVIRONMENT: ${{ vars.ENVIRONMENT }}
+          AWS_REGION_VAR: ${{ vars.AWS_REGION }}
+          AZS: ${{ vars.AZS || '' }}
+          PUBLIC_SUBNET_CIDRS: ${{ vars.PUBLIC_SUBNET_CIDRS || '' }}
+          PRIVATE_SUBNET_CIDRS: ${{ vars.PRIVATE_SUBNET_CIDRS || '' }}
+          DATA_SUBNET_CIDRS: ${{ vars.DATA_SUBNET_CIDRS || '' }}
+          FRONTEND_IMAGE: ${{ vars.FRONTEND_IMAGE }}
+          BACKEND_IMAGE: ${{ vars.BACKEND_IMAGE }}
+          FRONTEND_CERTIFICATE_ARN: ${{ vars.FRONTEND_CERTIFICATE_ARN }}
+          BACKEND_CERTIFICATE_ARN: ${{ vars.BACKEND_CERTIFICATE_ARN }}
+          WAF_WEB_ACL_ARN: ${{ vars.WAF_WEB_ACL_ARN || '' }}
+          DB_MASTER_USERNAME: ${{ vars.DB_MASTER_USERNAME }}
+          DB_MASTER_PASSWORD: ${{ vars.DB_MASTER_PASSWORD }}
+          DB_KMS_KEY_ARN: ${{ vars.DB_KMS_KEY_ARN || '' }}
+          DATABASE_SECRET_ARN: ${{ vars.DATABASE_SECRET_ARN }}
+          VPC_CIDR: ${{ vars.VPC_CIDR }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+import json, os, sys
+
+def parse_list(env_name):
+    raw = os.environ.get(env_name, "") or ""
+    items = [item.strip() for item in raw.split(",") if item.strip()]
+    return items
+
+data = {
+    "aws_region": os.environ.get("AWS_REGION_VAR"),
+    "project": os.environ.get("PROJECT") or "cardinal",
+    "environment": os.environ.get("ENVIRONMENT") or "prod",
+    "vpc_cidr": os.environ.get("VPC_CIDR"),
+    "azs": parse_list("AZS"),
+    "public_subnet_cidrs": parse_list("PUBLIC_SUBNET_CIDRS"),
+    "private_subnet_cidrs": parse_list("PRIVATE_SUBNET_CIDRS"),
+    "data_subnet_cidrs": parse_list("DATA_SUBNET_CIDRS"),
+    "frontend_image": os.environ.get("FRONTEND_IMAGE"),
+    "backend_image": os.environ.get("BACKEND_IMAGE"),
+    "frontend_certificate_arn": os.environ.get("FRONTEND_CERTIFICATE_ARN"),
+    "backend_certificate_arn": os.environ.get("BACKEND_CERTIFICATE_ARN"),
+    "waf_web_acl_arn": os.environ.get("WAF_WEB_ACL_ARN") or "",
+    "db_master_username": os.environ.get("DB_MASTER_USERNAME"),
+    "db_master_password": os.environ.get("DB_MASTER_PASSWORD"),
+    "db_kms_key_arn": os.environ.get("DB_KMS_KEY_ARN") or "",
+    "database_secret_arn": os.environ.get("DATABASE_SECRET_ARN"),
+}
+
+required = [
+    "aws_region",
+    "vpc_cidr",
+    "azs",
+    "public_subnet_cidrs",
+    "private_subnet_cidrs",
+    "frontend_image",
+    "backend_image",
+    "frontend_certificate_arn",
+    "backend_certificate_arn",
+    "db_master_username",
+    "db_master_password",
+    "database_secret_arn",
+]
+missing = [key for key in required if not data.get(key)]
+if missing:
+    sys.exit(f"Missing required repository variables: {missing}")
+
+with open("ci.auto.tfvars.json", "w", encoding="utf-8") as tfvars:
+    json.dump(data, tfvars, indent=2)
+          PY
 
       - name: Init
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -94,4 +166,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tfplan
-          path: stacks/dev/tfplan
+          path: stacks/prod/tfplan
