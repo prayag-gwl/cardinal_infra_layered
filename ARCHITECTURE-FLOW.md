@@ -4,5 +4,5 @@
 - `.github/workflows/`: CI/CD
 
 ### Flow
-Push to `dev` → CI runs init/validate/plan/apply in `stacks/dev` → ECS + ALB deploy FE service; CDN/data optional.
+Push to `develop` → CI runs init/validate/plan/apply in `stacks/dev` → ECS + ALB deploy FE service; CDN/data optional.
 
