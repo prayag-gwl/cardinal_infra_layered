@@ -12,6 +12,11 @@ env:
   TF_IN_AUTOMATION: true
   AWS_REGION: us-east-1
   TF_WORKING_DIR: stacks/dev
+  TF_BACKEND_BUCKET: ${{ secrets.TF_BACKEND_BUCKET }}
+  TF_BACKEND_KEY: ${{ secrets.TF_BACKEND_KEY }}
+  TF_BACKEND_REGION: ${{ secrets.TF_BACKEND_REGION }}
+  TF_BACKEND_DDB_TABLE: ${{ secrets.TF_BACKEND_DDB_TABLE }}
+  TF_BACKEND_KMS_KEY_ID: ${{ secrets.TF_BACKEND_KMS_KEY_ID }}
 
 jobs:
   terraform:
@@ -39,7 +44,20 @@ jobs:
 
       - name: Init
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform init -input=false
+        run: |
+          set -euo pipefail
+          REGION_VALUE=${TF_BACKEND_REGION:-$AWS_REGION}
+          INIT_ARGS=(
+            "-input=false"
+            "-backend-config=bucket=${TF_BACKEND_BUCKET}"
+            "-backend-config=key=${TF_BACKEND_KEY}"
+            "-backend-config=region=${REGION_VALUE}"
+            "-backend-config=dynamodb_table=${TF_BACKEND_DDB_TABLE}"
+          )
+          if [ -n "${TF_BACKEND_KMS_KEY_ID:-}" ]; then
+            INIT_ARGS+=("-backend-config=kms_key_id=${TF_BACKEND_KMS_KEY_ID}")
+          fi
+          terraform init "${INIT_ARGS[@]}"
 
       - name: Validate
         working-directory: ${{ env.TF_WORKING_DIR }}
