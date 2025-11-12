@@ -4,7 +4,7 @@ Terraform modules and environment stacks for AWS.
 ### Layout
 - `modules/`: reusable modules (ALB, ECS cluster/service, ECR, logging, common).
 - `stacks/dev/`: dev environment composition.
-- `.github/workflows/Dev-Terraform-apply.yml`: CI plan/apply for `dev`.
+- `.github/workflows/Dev-Terraform-apply.yml`: CI plan/apply for `develop`.
 
 ### Prereqs
 - Terraform >= 1.5
