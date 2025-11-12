@@ -210,11 +210,3 @@ resource "aws_appautoscaling_policy" "memory" {
     scale_out_cooldown = 60
   }
 }
-
-output "service_name" {
-  value = aws_ecs_service.svc.name
-}
-
-output "task_definition_arn" {
-  value = aws_ecs_task_definition.td.arn
-}
