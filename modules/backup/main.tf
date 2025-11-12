@@ -102,10 +102,9 @@ resource "aws_backup_plan" "this" {
 }
 
 resource "aws_backup_selection" "this" {
-  count        = local.backup_role_arn != null ? 1 : 0
   name         = "${var.plan_name}-selection"
   plan_id      = aws_backup_plan.this.id
-  iam_role_arn = local.backup_role_arn
+  iam_role_arn = var.iam_role_arn != "" ? var.iam_role_arn : aws_iam_role.backup[0].arn
 
   resources = var.backup_resources
 }

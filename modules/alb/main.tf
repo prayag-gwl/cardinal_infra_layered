@@ -1,5 +1,7 @@
 locals {
   default_target_group_arn = var.enable_frontend_target ? try(aws_lb_target_group.frontend[0].arn, null) : try(aws_lb_target_group.backend[0].arn, null)
+  frontend_tg_name         = substr("${var.name}-fe", 0, 32)
+  backend_tg_name          = substr("${var.name}-be", 0, 32)
 }
 
 resource "aws_lb" "this" {
@@ -26,7 +28,7 @@ resource "aws_lb" "this" {
 
 resource "aws_lb_target_group" "frontend" {
   count    = var.enable_frontend_target ? 1 : 0
-  name     = "tg-${var.name}-frontend-${var.frontend_target_port}"
+  name     = local.frontend_tg_name
   port     = var.frontend_target_port
   protocol = "HTTP"
   vpc_id   = var.vpc_id
@@ -41,7 +43,7 @@ resource "aws_lb_target_group" "frontend" {
 
 resource "aws_lb_target_group" "backend" {
   count    = var.enable_backend_target ? 1 : 0
-  name     = "tg-${var.name}-backend-${var.backend_target_port}"
+  name     = local.backend_tg_name
   port     = var.backend_target_port
   protocol = "HTTP"
   vpc_id   = var.vpc_id

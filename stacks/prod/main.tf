@@ -206,6 +206,7 @@ module "rds" {
   master_password        = var.db_master_password
   subnet_ids             = length(module.networking.data_subnet_ids) > 0 ? module.networking.data_subnet_ids : module.networking.private_subnet_ids
   vpc_security_group_ids = [module.networking.rds_security_group_id]
+  create_kms_key         = false
   kms_key_arn            = var.db_kms_key_arn
   tags                   = local.common_tags
 }
@@ -245,7 +246,7 @@ module "backup" {
   plan_name         = "${var.project}-${var.environment}-db-backup-plan"
   backup_resources  = module.rds.arn != "" ? [module.rds.arn] : []
   tags              = local.common_tags
-  sns_topic_arn     = module.monitoring.sns_topic_arn
+  sns_topic_arn     = ""
   copy_actions      = var.backup_copy_actions
 }
 
