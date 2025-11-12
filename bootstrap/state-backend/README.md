@@ -2,6 +2,8 @@
 
 Provision the remote state backend (S3 bucket + DynamoDB lock table) that the main `stacks/dev` configuration depends on. This stack is intentionally small and uses local state so it can run **before** remote state exists.
 
+You can execute it locally or trigger the GitHub Actions workflow `Bootstrap Terraform Backend`, which wraps the same commands and reads values from repository secrets.
+
 ## Inputs
 
 Update `terraform.tfvars` or supply variables on the command line:

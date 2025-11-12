@@ -46,6 +46,9 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
           set -euo pipefail
+          : "${TF_BACKEND_BUCKET:?TF_BACKEND_BUCKET secret is required}"
+          : "${TF_BACKEND_KEY:?TF_BACKEND_KEY secret is required}"
+          : "${TF_BACKEND_DDB_TABLE:?TF_BACKEND_DDB_TABLE secret is required}"
           REGION_VALUE=${TF_BACKEND_REGION:-$AWS_REGION}
           INIT_ARGS=(
             "-input=false"
@@ -53,6 +56,7 @@ jobs:
             "-backend-config=key=${TF_BACKEND_KEY}"
             "-backend-config=region=${REGION_VALUE}"
             "-backend-config=dynamodb_table=${TF_BACKEND_DDB_TABLE}"
+            "-backend-config=use_lockfile=true"
           )
           if [ -n "${TF_BACKEND_KMS_KEY_ID:-}" ]; then
             INIT_ARGS+=("-backend-config=kms_key_id=${TF_BACKEND_KMS_KEY_ID}")
