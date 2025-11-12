@@ -25,7 +25,7 @@ env:
 
 jobs:
   bootstrap:
-    if: env.TF_BACKEND_BUCKET != '' && env.TF_BACKEND_REGION != '' && env.TF_BACKEND_DDB_TABLE != ''
+    if: ${{ env.TF_BACKEND_BUCKET != '' && env.TF_BACKEND_REGION != '' && env.TF_BACKEND_DDB_TABLE != '' }}
     runs-on: ubuntu-latest
 
     permissions:
@@ -82,4 +82,3 @@ jobs:
           TF_VAR_enable_kms: ${{ inputs.enable_kms }}
           TF_VAR_kms_alias: ${{ inputs.kms_alias }}
         run: terraform apply -input=false -auto-approve tfplan
-
