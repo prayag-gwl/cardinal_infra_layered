@@ -25,7 +25,6 @@ env:
 
 jobs:
   bootstrap:
-    if: ${{ env.TF_BACKEND_BUCKET != '' && env.TF_BACKEND_REGION != '' && env.TF_BACKEND_DDB_TABLE != '' }}
     runs-on: ubuntu-latest
 
     permissions:
@@ -33,6 +32,13 @@ jobs:
       contents: read
 
     steps:
+      - name: Validate required secrets
+        run: |
+          set -euo pipefail
+          : "${TF_BACKEND_BUCKET:?TF_BACKEND_BUCKET secret is required}"
+          : "${TF_BACKEND_REGION:?TF_BACKEND_REGION secret is required}"
+          : "${TF_BACKEND_DDB_TABLE:?TF_BACKEND_DDB_TABLE secret is required}"
+
       - name: Checkout
         uses: actions/checkout@v4
 
