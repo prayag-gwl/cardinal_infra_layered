@@ -13,7 +13,7 @@ variable "memory" {
 variable "container_name"     { type = string }
 variable "container_port" {
   type    = number
-  default = 3000
+  default = 80
 }
 variable "log_group_name"     { type = string }
 variable "aws_region"         { type = string }
@@ -23,6 +23,40 @@ variable "target_group_arn"   { type = string }
 variable "environment_vars" {
   type    = map(string)
   default = {}
+}
+variable "secrets" {
+  description = "List of container secrets (name/value_from)."
+  type = list(object({
+    name       = string
+    value_from = string
+  }))
+  default = []
+}
+variable "secret_arns" {
+  description = "Secret ARNs (or ARN patterns) the task role should be allowed to read."
+  type        = list(string)
+  default     = []
+}
+variable "task_role_policy_arns" {
+  description = "Additional IAM policies to attach to the task role."
+  type        = list(string)
+  default     = []
+}
+variable "health_check" {
+  description = "Container health check configuration."
+  type = object({
+    command      = list(string)
+    interval     = number
+    timeout      = number
+    retries      = number
+    start_period = number
+  })
+  default = null
+}
+variable "ephemeral_storage" {
+  description = "Ephemeral storage size (GiB) for the task."
+  type        = number
+  default     = null
 }
 variable "desired_count" {
   description = "Desired task count."

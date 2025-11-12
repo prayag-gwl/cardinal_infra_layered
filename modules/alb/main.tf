@@ -122,31 +122,3 @@ resource "aws_wafv2_web_acl_association" "this" {
   resource_arn = aws_lb.this.arn
   web_acl_arn  = var.waf_web_acl_arn
 }
-
-output "dns_name" {
-  value = aws_lb.this.dns_name
-}
-
-output "arn" {
-  value = aws_lb.this.arn
-}
-
-output "arn_suffix" {
-  value = aws_lb.this.arn_suffix
-}
-
-output "tg_frontend_arn" {
-  value = try(aws_lb_target_group.frontend[0].arn, null)
-}
-
-output "tg_backend_arn" {
-  value = try(aws_lb_target_group.backend[0].arn, null)
-}
-
-output "tg_frontend_name" {
-  value = try(aws_lb_target_group.frontend[0].name, null)
-}
-
-output "tg_backend_name" {
-  value = try(aws_lb_target_group.backend[0].name, null)
-}

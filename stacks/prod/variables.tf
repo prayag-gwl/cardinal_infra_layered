@@ -15,6 +15,12 @@ variable "azs" {
   type        = list(string)
 }
 
+variable "vpc_cidr" {
+  description = "CIDR block for the VPC."
+  type        = string
+  default     = "10.0.0.0/16"
+}
+
 variable "public_subnet_cidrs" {
   description = "Public subnet CIDRs corresponding to the AZ list."
   type        = list(string)
@@ -23,6 +29,12 @@ variable "public_subnet_cidrs" {
 variable "private_subnet_cidrs" {
   description = "Private subnet CIDRs corresponding to the AZ list."
   type        = list(string)
+}
+
+variable "data_subnet_cidrs" {
+  description = "Optional data subnet CIDRs corresponding to the AZ list."
+  type        = list(string)
+  default     = []
 }
 
 variable "frontend_image" {
@@ -78,6 +90,11 @@ variable "db_kms_key_arn" {
   description = "Optional existing KMS key ARN for RDS encryption."
   type        = string
   default     = ""
+}
+
+variable "database_secret_arn" {
+  description = "Secrets Manager secret ARN containing database credentials (JSON)."
+  type        = string
 }
 
 variable "alarm_emails" {

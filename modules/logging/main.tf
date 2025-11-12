@@ -4,4 +4,3 @@ resource "aws_cloudwatch_log_group" "lg" {
   retention_in_days = var.retention_in_days
   tags              = var.tags
 }
-output "names" { value = [for lg in aws_cloudwatch_log_group.lg : lg.name] }

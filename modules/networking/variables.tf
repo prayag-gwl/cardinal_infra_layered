@@ -19,6 +19,12 @@ variable "private_subnet_cidrs" {
   type        = list(string)
 }
 
+variable "data_subnet_cidrs" {
+  description = "Optional CIDR blocks for dedicated data subnets (one per AZ)."
+  type        = list(string)
+  default     = []
+}
+
 variable "enable_vpc_flow_logs" {
   description = "Whether to enable VPC flow logs."
   type        = bool

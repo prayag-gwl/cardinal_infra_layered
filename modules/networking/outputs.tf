@@ -13,6 +13,11 @@ output "private_subnet_ids" {
   description = "Private subnet IDs."
 }
 
+output "data_subnet_ids" {
+  value       = [for s in aws_subnet.data : s.id]
+  description = "Data subnet IDs (if created)."
+}
+
 output "alb_security_group_id" {
   value       = aws_security_group.alb.id
   description = "Security group for the public ALB."

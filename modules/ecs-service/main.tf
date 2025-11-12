@@ -19,6 +19,42 @@ resource "aws_iam_role_policy_attachment" "exec" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
+resource "aws_iam_role" "task" {
+  name               = "${var.service_name}-task-role"
+  assume_role_policy = data.aws_iam_policy_document.assume.json
+  tags               = var.tags
+}
+
+resource "aws_iam_role_policy" "task_secrets" {
+  count = length(var.secret_arns) > 0 ? 1 : 0
+
+  name = "${var.service_name}-task-secrets"
+  role = aws_iam_role.task.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = var.secret_arns
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt"]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "task_additional" {
+  for_each = toset(var.task_role_policy_arns)
+
+  role       = aws_iam_role.task.name
+  policy_arn = each.value
+}
+
 resource "aws_ecs_task_definition" "td" {
   family                   = "${var.service_name}-task"
   requires_compatibilities = ["FARGATE"]
@@ -26,14 +62,22 @@ resource "aws_ecs_task_definition" "td" {
   cpu                      = var.cpu
   memory                   = var.memory
   execution_role_arn       = aws_iam_role.task_exec.arn
+  task_role_arn            = aws_iam_role.task.arn
 
   runtime_platform {
     operating_system_family = "LINUX"
     cpu_architecture        = "X86_64"
   }
 
+  dynamic "ephemeral_storage" {
+    for_each = var.ephemeral_storage != null ? [var.ephemeral_storage] : []
+    content {
+      size_in_gib = ephemeral_storage.value
+    }
+  }
+
   container_definitions = jsonencode([
-    {
+    merge({
       name         = var.container_name
       image        = var.image
       essential    = true
@@ -47,7 +91,23 @@ resource "aws_ecs_task_definition" "td" {
           awslogs-stream-prefix = "ecs"
         }
       }
-    }
+    },
+    var.health_check != null ? {
+      healthCheck = {
+        command     = var.health_check.command
+        interval    = var.health_check.interval
+        timeout     = var.health_check.timeout
+        retries     = var.health_check.retries
+        startPeriod = var.health_check.start_period
+      }
+    } : {},
+    length(var.secrets) > 0 ? {
+      secrets = [for s in var.secrets : {
+        name      = s.name
+        valueFrom = s.value_from
+      }]
+    } : {}
+    )
   ])
   tags = var.tags
 }

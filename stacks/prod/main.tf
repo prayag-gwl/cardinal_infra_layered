@@ -4,6 +4,14 @@ locals {
     Environment   = title(var.environment)
     ProvisionedBy = "Terraform"
   }, var.extra_tags)
+
+  db_secret_suffixes = [
+    { name = "DB_HOST",     suffix = ":host::" },
+    { name = "DB_NAME",     suffix = ":database::" },
+    { name = "DB_PASSWORD", suffix = ":password::" },
+    { name = "DB_PORT",     suffix = ":port::" },
+    { name = "DB_USERNAME", suffix = ":username::" },
+  ]
 }
 
 resource "random_string" "alb_logs" {
@@ -37,12 +45,13 @@ resource "aws_s3_bucket_public_access_block" "alb_logs" {
 }
 
 module "networking" {
-  source                = "../../modules/networking"
-  azs                   = var.azs
-  public_subnet_cidrs   = var.public_subnet_cidrs
-  private_subnet_cidrs  = var.private_subnet_cidrs
-  vpc_cidr              = "10.0.0.0/16"
-  tags                  = local.common_tags
+  source              = "../../modules/networking"
+  azs                 = var.azs
+  vpc_cidr            = var.vpc_cidr
+  public_subnet_cidrs = var.public_subnet_cidrs
+  private_subnet_cidrs = var.private_subnet_cidrs
+  data_subnet_cidrs   = var.data_subnet_cidrs
+  tags                = local.common_tags
 }
 
 module "logging" {
@@ -122,41 +131,71 @@ module "alb_backend" {
 }
 
 module "frontend_service" {
-  source                    = "../../modules/ecs-service"
-  cluster_id                = module.ecs_cluster.id
-  cluster_name              = module.ecs_cluster.name
-  service_name              = "${var.project}-${var.environment}-frontend"
-  image                     = var.frontend_image
-  container_name            = "${var.project}-frontend"
-  log_group_name            = "/ecs/${var.project}-${var.environment}-frontend"
-  aws_region                = var.aws_region
-  subnet_ids                = module.networking.private_subnet_ids
-  security_group_id         = module.networking.ecs_security_group_id
-  target_group_arn          = module.alb_frontend.tg_frontend_arn
-  environment_vars          = var.frontend_env
-  assign_public_ip          = false
-  autoscaling_cpu_target    = 60
+  source             = "../../modules/ecs-service"
+  cluster_id         = module.ecs_cluster.id
+  cluster_name       = module.ecs_cluster.name
+  service_name       = "${var.project}-${var.environment}-frontend"
+  image              = var.frontend_image
+  container_name     = "${var.project}-frontend"
+  log_group_name     = "/ecs/${var.project}-${var.environment}-frontend"
+  aws_region         = var.aws_region
+  subnet_ids         = module.networking.private_subnet_ids
+  security_group_id  = module.networking.ecs_security_group_id
+  target_group_arn   = module.alb_frontend.tg_frontend_arn
+  environment_vars   = var.frontend_env
+  memory             = "3072"
+  container_port     = 80
+  health_check = {
+    command      = ["CMD-SHELL", format("curl -f http://localhost:%d%s || exit 1", 80, var.frontend_health_path)]
+    interval     = 30
+    timeout      = 5
+    retries      = 3
+    start_period = 60
+  }
+  ephemeral_storage       = 21
+  secrets                 = [for entry in local.db_secret_suffixes : {
+    name       = entry.name
+    value_from = "${var.database_secret_arn}${entry.suffix}"
+  }]
+  secret_arns             = ["${var.database_secret_arn}*"]
+  assign_public_ip        = false
+  autoscaling_cpu_target  = 60
   autoscaling_memory_target = 70
-  tags                      = local.common_tags
+  tags                    = local.common_tags
 }
 
 module "backend_service" {
-  source                    = "../../modules/ecs-service"
-  cluster_id                = module.ecs_cluster.id
-  cluster_name              = module.ecs_cluster.name
-  service_name              = "${var.project}-${var.environment}-backend"
-  image                     = var.backend_image
-  container_name            = "${var.project}-backend"
-  log_group_name            = "/ecs/${var.project}-${var.environment}-backend"
-  aws_region                = var.aws_region
-  subnet_ids                = module.networking.private_subnet_ids
-  security_group_id         = module.networking.ecs_security_group_id
-  target_group_arn          = module.alb_backend.tg_backend_arn
-  environment_vars          = var.backend_env
-  assign_public_ip          = false
-  autoscaling_cpu_target    = 60
-  autoscaling_memory_target = 70
-  tags                      = local.common_tags
+  source             = "../../modules/ecs-service"
+  cluster_id         = module.ecs_cluster.id
+  cluster_name       = module.ecs_cluster.name
+  service_name       = "${var.project}-${var.environment}-backend"
+  image              = var.backend_image
+  container_name     = "${var.project}-backend"
+  log_group_name     = "/ecs/${var.project}-${var.environment}-backend"
+  aws_region         = var.aws_region
+  subnet_ids         = module.networking.private_subnet_ids
+  security_group_id  = module.networking.ecs_security_group_id
+  target_group_arn   = module.alb_backend.tg_backend_arn
+  environment_vars   = var.backend_env
+  memory             = "3072"
+  container_port     = 80
+  desired_count      = 1
+  autoscaling_enabled = false
+  health_check = {
+    command      = ["CMD-SHELL", format("curl -f http://localhost:%d%s || exit 1", 80, var.backend_health_path)]
+    interval     = 30
+    timeout      = 5
+    retries      = 3
+    start_period = 60
+  }
+  ephemeral_storage = 21
+  secrets = [for entry in local.db_secret_suffixes : {
+    name       = entry.name
+    value_from = "${var.database_secret_arn}${entry.suffix}"
+  }]
+  secret_arns      = ["${var.database_secret_arn}*"]
+  assign_public_ip = false
+  tags             = local.common_tags
 }
 
 module "rds" {
@@ -165,7 +204,7 @@ module "rds" {
   db_name                = "${var.project}_${var.environment}"
   master_username        = var.db_master_username
   master_password        = var.db_master_password
-  subnet_ids             = module.networking.private_subnet_ids
+  subnet_ids             = length(module.networking.data_subnet_ids) > 0 ? module.networking.data_subnet_ids : module.networking.private_subnet_ids
   vpc_security_group_ids = [module.networking.rds_security_group_id]
   kms_key_arn            = var.db_kms_key_arn
   tags                   = local.common_tags

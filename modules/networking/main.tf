@@ -51,6 +51,19 @@ resource "aws_subnet" "private" {
   })
 }
 
+resource "aws_subnet" "data" {
+  for_each = length(var.data_subnet_cidrs) > 0 ? local.az_map : {}
+
+  vpc_id            = aws_vpc.this.id
+  cidr_block        = var.data_subnet_cidrs[each.value]
+  availability_zone = each.key
+
+  tags = merge(var.tags, {
+    Name = "${local.name_prefix}-data-${each.key}"
+    Tier = "data"
+  })
+}
+
 resource "aws_eip" "nat" {
   for_each = local.az_map
 
@@ -115,6 +128,13 @@ resource "aws_route_table_association" "private" {
   for_each = local.az_map
 
   subnet_id      = aws_subnet.private[each.key].id
+  route_table_id = aws_route_table.private[each.key].id
+}
+
+resource "aws_route_table_association" "data" {
+  for_each = length(var.data_subnet_cidrs) > 0 ? local.az_map : {}
+
+  subnet_id      = aws_subnet.data[each.key].id
   route_table_id = aws_route_table.private[each.key].id
 }
 
@@ -252,6 +272,17 @@ resource "aws_security_group" "ecs_service" {
   name        = "${local.name_prefix}-ecs-sg"
   description = "Allow ALB to reach ECS services"
   vpc_id      = aws_vpc.this.id
+
+  ingress {
+    description     = "Allow HTTP from ALB"
+    from_port       = 80
+    to_port         = 80
+    protocol        = "tcp"
+    security_groups = [
+      aws_security_group.alb.id,
+      aws_security_group.internal_alb.id,
+    ]
+  }
 
   ingress {
     description     = "Allow traffic from ALB"
