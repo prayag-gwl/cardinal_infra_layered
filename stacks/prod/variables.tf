@@ -60,13 +60,15 @@ variable "backend_env" {
 }
 
 variable "frontend_certificate_arn" {
-  description = "ACM certificate ARN for the public ALB."
+  description = "ACM certificate ARN for the public ALB. Leave blank to run HTTP-only."
   type        = string
+  default     = ""
 }
 
 variable "backend_certificate_arn" {
-  description = "ACM certificate ARN for the internal backend ALB."
+  description = "ACM certificate ARN for the internal backend ALB. Leave blank to run HTTP-only."
   type        = string
+  default     = ""
 }
 
 variable "waf_web_acl_arn" {

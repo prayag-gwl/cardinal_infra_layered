@@ -105,9 +105,12 @@ module "alb_frontend" {
   security_group_ids       = [module.networking.alb_security_group_id]
   internal                 = false
   certificate_arn          = var.frontend_certificate_arn
+  enable_https_listener    = var.frontend_certificate_arn != ""
+  enable_http_redirect     = var.frontend_certificate_arn != ""
   frontend_health_path     = var.frontend_health_path
   backend_health_path      = var.backend_health_path
   enable_backend_target    = false
+  frontend_target_port     = 80
   access_logs_bucket       = aws_s3_bucket.alb_logs.bucket
   access_logs_prefix       = "frontend"
   waf_web_acl_arn          = var.waf_web_acl_arn
@@ -122,8 +125,10 @@ module "alb_backend" {
   security_group_ids       = [module.networking.internal_alb_security_group_id]
   internal                 = true
   certificate_arn          = var.backend_certificate_arn
+  enable_https_listener    = var.backend_certificate_arn != ""
   enable_frontend_target   = false
   backend_health_path      = var.backend_health_path
+  backend_target_port      = 80
   access_logs_bucket       = aws_s3_bucket.alb_logs.bucket
   access_logs_prefix       = "backend"
   enable_http_redirect     = false

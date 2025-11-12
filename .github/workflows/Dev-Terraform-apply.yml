@@ -42,8 +42,9 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Render Terraform variable file
+      - name: Export Terraform variables
         working-directory: ${{ env.TF_WORKING_DIR }}
+        shell: bash
         env:
           PROJECT: ${{ vars.PROJECT }}
           ENVIRONMENT: ${{ vars.ENVIRONMENT }}
@@ -64,55 +65,61 @@ jobs:
           VPC_CIDR: ${{ vars.VPC_CIDR }}
         run: |
           set -euo pipefail
-          python - <<'PY'
-import json, os, sys
+          required_vars=(
+            AWS_REGION_VAR
+            VPC_CIDR
+            AZS
+            PUBLIC_SUBNET_CIDRS
+            PRIVATE_SUBNET_CIDRS
+            FRONTEND_IMAGE
+            BACKEND_IMAGE
+            FRONTEND_CERTIFICATE_ARN
+            BACKEND_CERTIFICATE_ARN
+            DB_MASTER_USERNAME
+            DB_MASTER_PASSWORD
+            DATABASE_SECRET_ARN
+          )
 
-def parse_list(env_name):
-    raw = os.environ.get(env_name, "") or ""
-    items = [item.strip() for item in raw.split(",") if item.strip()]
-    return items
+          for var_name in "${required_vars[@]}"; do
+            if [ -z "${!var_name:-}" ]; then
+              echo "::error ::Missing repository variable: ${var_name}" >&2
+              exit 1
+            fi
+          done
 
-data = {
-    "aws_region": os.environ.get("AWS_REGION_VAR"),
-    "project": os.environ.get("PROJECT") or "cardinal",
-    "environment": os.environ.get("ENVIRONMENT") or "prod",
-    "vpc_cidr": os.environ.get("VPC_CIDR"),
-    "azs": parse_list("AZS"),
-    "public_subnet_cidrs": parse_list("PUBLIC_SUBNET_CIDRS"),
-    "private_subnet_cidrs": parse_list("PRIVATE_SUBNET_CIDRS"),
-    "data_subnet_cidrs": parse_list("DATA_SUBNET_CIDRS"),
-    "frontend_image": os.environ.get("FRONTEND_IMAGE"),
-    "backend_image": os.environ.get("BACKEND_IMAGE"),
-    "frontend_certificate_arn": os.environ.get("FRONTEND_CERTIFICATE_ARN"),
-    "backend_certificate_arn": os.environ.get("BACKEND_CERTIFICATE_ARN"),
-    "waf_web_acl_arn": os.environ.get("WAF_WEB_ACL_ARN") or "",
-    "db_master_username": os.environ.get("DB_MASTER_USERNAME"),
-    "db_master_password": os.environ.get("DB_MASTER_PASSWORD"),
-    "db_kms_key_arn": os.environ.get("DB_KMS_KEY_ARN") or "",
-    "database_secret_arn": os.environ.get("DATABASE_SECRET_ARN"),
-}
+          to_json_array() {
+            local raw="${1:-}"
+            if [ -z "$raw" ]; then
+              printf '[]'
+            else
+              printf '%s' "$raw" | jq -c -R 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))'
+            fi
+          }
 
-required = [
-    "aws_region",
-    "vpc_cidr",
-    "azs",
-    "public_subnet_cidrs",
-    "private_subnet_cidrs",
-    "frontend_image",
-    "backend_image",
-    "frontend_certificate_arn",
-    "backend_certificate_arn",
-    "db_master_username",
-    "db_master_password",
-    "database_secret_arn",
-]
-missing = [key for key in required if not data.get(key)]
-if missing:
-    sys.exit(f"Missing required repository variables: {missing}")
+          AZS_JSON=$(to_json_array "$AZS")
+          PUBLIC_SUBNETS_JSON=$(to_json_array "$PUBLIC_SUBNET_CIDRS")
+          PRIVATE_SUBNETS_JSON=$(to_json_array "$PRIVATE_SUBNET_CIDRS")
+          DATA_SUBNETS_JSON=$(to_json_array "$DATA_SUBNET_CIDRS")
 
-with open("ci.auto.tfvars.json", "w", encoding="utf-8") as tfvars:
-    json.dump(data, tfvars, indent=2)
-          PY
+          {
+            echo "TF_VAR_aws_region=$AWS_REGION_VAR"
+            echo "TF_VAR_project=${PROJECT:-cardinal}"
+            echo "TF_VAR_environment=${ENVIRONMENT:-prod}"
+            echo "TF_VAR_vpc_cidr=$VPC_CIDR"
+            echo "TF_VAR_frontend_image=$FRONTEND_IMAGE"
+            echo "TF_VAR_backend_image=$BACKEND_IMAGE"
+            echo "TF_VAR_frontend_certificate_arn=$FRONTEND_CERTIFICATE_ARN"
+            echo "TF_VAR_backend_certificate_arn=$BACKEND_CERTIFICATE_ARN"
+            echo "TF_VAR_waf_web_acl_arn=$WAF_WEB_ACL_ARN"
+            echo "TF_VAR_db_master_username=$DB_MASTER_USERNAME"
+            echo "TF_VAR_db_master_password=$DB_MASTER_PASSWORD"
+            echo "TF_VAR_db_kms_key_arn=$DB_KMS_KEY_ARN"
+            echo "TF_VAR_database_secret_arn=$DATABASE_SECRET_ARN"
+            echo "TF_VAR_azs=$AZS_JSON"
+            echo "TF_VAR_public_subnet_cidrs=$PUBLIC_SUBNETS_JSON"
+            echo "TF_VAR_private_subnet_cidrs=$PRIVATE_SUBNETS_JSON"
+            echo "TF_VAR_data_subnet_cidrs=$DATA_SUBNETS_JSON"
+          } >> "$GITHUB_ENV"
 
       - name: Init
         working-directory: ${{ env.TF_WORKING_DIR }}
