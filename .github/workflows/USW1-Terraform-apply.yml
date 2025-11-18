@@ -1,30 +1,30 @@
-name: Develop Terraform Apply
-
+name: USW1 Terraform Apply
 on:
-  push:
-    branches: [ develop ]
-    paths:
-      - '**/*.tf'
-      - '.github/workflows/Dev-Terraform-apply.yml'
   workflow_dispatch:
 
 env:
   TF_IN_AUTOMATION: true
-  AWS_REGION: ${{ vars.AWS_REGION }}
+  AWS_REGION: ${{ vars.USW1_AWS_REGION }}
   TF_WORKING_DIR: stacks/prod
-  TF_BACKEND_BUCKET: ${{ secrets.TF_BACKEND_BUCKET }}
-  TF_BACKEND_KEY: ${{ secrets.TF_BACKEND_KEY }}
-  TF_BACKEND_REGION: ${{ secrets.TF_BACKEND_REGION }}
-  TF_BACKEND_DDB_TABLE: ${{ secrets.TF_BACKEND_DDB_TABLE }}
-  TF_BACKEND_KMS_KEY_ID: ${{ secrets.TF_BACKEND_KMS_KEY_ID }}
+  TF_BACKEND_BUCKET: ${{ secrets.USW1_TF_BACKEND_BUCKET }}
+  TF_BACKEND_KEY: ${{ secrets.USW1_TF_BACKEND_KEY }}
+  TF_BACKEND_REGION: ${{ secrets.USW1_TF_BACKEND_REGION }}
+  TF_BACKEND_DDB_TABLE: ${{ secrets.USW1_TF_BACKEND_DDB_TABLE }}
+  TF_BACKEND_KMS_KEY_ID: ${{ secrets.USW1_TF_BACKEND_KMS_KEY_ID }}
+
+concurrency:
+  group: usw1-terraform-apply
+  cancel-in-progress: false
 
 jobs:
-  terraform:
+  apply:
     runs-on: ubuntu-latest
+    environment: production-usw1
 
     permissions:
       id-token: write
       contents: read
+      actions: read
 
     steps:
       - name: Checkout
@@ -39,30 +39,30 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-to-assume: ${{ secrets.USW1_AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Export Terraform variables
         working-directory: ${{ env.TF_WORKING_DIR }}
         shell: bash
         env:
-          PROJECT: ${{ vars.PROJECT }}
-          ENVIRONMENT: ${{ vars.ENVIRONMENT }}
-          AWS_REGION_VAR: ${{ vars.AWS_REGION }}
-          AZS: ${{ vars.AZS || '' }}
-          PUBLIC_SUBNET_CIDRS: ${{ vars.PUBLIC_SUBNET_CIDRS || '' }}
-          PRIVATE_SUBNET_CIDRS: ${{ vars.PRIVATE_SUBNET_CIDRS || '' }}
-          DATA_SUBNET_CIDRS: ${{ vars.DATA_SUBNET_CIDRS || '' }}
-          FRONTEND_IMAGE: ${{ vars.FRONTEND_IMAGE }}
-          BACKEND_IMAGE: ${{ vars.BACKEND_IMAGE }}
-          FRONTEND_CERTIFICATE_ARN: ${{ vars.FRONTEND_CERTIFICATE_ARN }}
-          BACKEND_CERTIFICATE_ARN: ${{ vars.BACKEND_CERTIFICATE_ARN }}
-          WAF_WEB_ACL_ARN: ${{ vars.WAF_WEB_ACL_ARN || '' }}
-          DB_MASTER_USERNAME: ${{ vars.DB_MASTER_USERNAME }}
-          DB_MASTER_PASSWORD: ${{ vars.DB_MASTER_PASSWORD }}
-          DB_KMS_KEY_ARN: ${{ vars.DB_KMS_KEY_ARN || '' }}
-          DATABASE_SECRET_ARN: ${{ vars.DATABASE_SECRET_ARN }}
-          VPC_CIDR: ${{ vars.VPC_CIDR }}
+          PROJECT: ${{ vars.USW1_PROJECT }}
+          ENVIRONMENT: ${{ vars.USW1_ENVIRONMENT }}
+          AWS_REGION_VAR: ${{ vars.USW1_AWS_REGION }}
+          AZS: ${{ vars.USW1_AZS || '' }}
+          PUBLIC_SUBNET_CIDRS: ${{ vars.USW1_PUBLIC_SUBNET_CIDRS || '' }}
+          PRIVATE_SUBNET_CIDRS: ${{ vars.USW1_PRIVATE_SUBNET_CIDRS || '' }}
+          DATA_SUBNET_CIDRS: ${{ vars.USW1_DATA_SUBNET_CIDRS || '' }}
+          FRONTEND_IMAGE: ${{ vars.USW1_FRONTEND_IMAGE }}
+          BACKEND_IMAGE: ${{ vars.USW1_BACKEND_IMAGE }}
+          FRONTEND_CERTIFICATE_ARN: ${{ vars.USW1_FRONTEND_CERTIFICATE_ARN || '' }}
+          BACKEND_CERTIFICATE_ARN: ${{ vars.USW1_BACKEND_CERTIFICATE_ARN || '' }}
+          WAF_WEB_ACL_ARN: ${{ vars.USW1_WAF_WEB_ACL_ARN || '' }}
+          DATABASE_SECRET_ARN: ${{ vars.USW1_DATABASE_SECRET_ARN || '' }}
+          DATABASE_NAME: ${{ vars.USW1_DATABASE_NAME }}
+          EXISTING_RDS_IDENTIFIER: ${{ vars.USW1_EXISTING_RDS_IDENTIFIER }}
+          VPC_CIDR: ${{ vars.USW1_VPC_CIDR }}
+          BACKUP_KMS_KEY_ARN: ${{ vars.USW1_BACKUP_KMS_KEY_ARN || '' }}
         run: |
           set -euo pipefail
           required_vars=(
@@ -73,11 +73,9 @@ jobs:
             PRIVATE_SUBNET_CIDRS
             FRONTEND_IMAGE
             BACKEND_IMAGE
-            FRONTEND_CERTIFICATE_ARN
-            BACKEND_CERTIFICATE_ARN
-            DB_MASTER_USERNAME
-            DB_MASTER_PASSWORD
             DATABASE_SECRET_ARN
+            DATABASE_NAME
+            EXISTING_RDS_IDENTIFIER
           )
 
           for var_name in "${required_vars[@]}"; do
@@ -101,25 +99,35 @@ jobs:
           PRIVATE_SUBNETS_JSON=$(to_json_array "$PRIVATE_SUBNET_CIDRS")
           DATA_SUBNETS_JSON=$(to_json_array "$DATA_SUBNET_CIDRS")
 
-          {
-            echo "TF_VAR_aws_region=$AWS_REGION_VAR"
-            echo "TF_VAR_project=${PROJECT:-cardinal}"
-            echo "TF_VAR_environment=${ENVIRONMENT:-prod}"
-            echo "TF_VAR_vpc_cidr=$VPC_CIDR"
-            echo "TF_VAR_frontend_image=$FRONTEND_IMAGE"
-            echo "TF_VAR_backend_image=$BACKEND_IMAGE"
-            echo "TF_VAR_frontend_certificate_arn=$FRONTEND_CERTIFICATE_ARN"
-            echo "TF_VAR_backend_certificate_arn=$BACKEND_CERTIFICATE_ARN"
-            echo "TF_VAR_waf_web_acl_arn=$WAF_WEB_ACL_ARN"
-            echo "TF_VAR_db_master_username=$DB_MASTER_USERNAME"
-            echo "TF_VAR_db_master_password=$DB_MASTER_PASSWORD"
-            echo "TF_VAR_db_kms_key_arn=$DB_KMS_KEY_ARN"
-            echo "TF_VAR_database_secret_arn=$DATABASE_SECRET_ARN"
-            echo "TF_VAR_azs=$AZS_JSON"
-            echo "TF_VAR_public_subnet_cidrs=$PUBLIC_SUBNETS_JSON"
-            echo "TF_VAR_private_subnet_cidrs=$PRIVATE_SUBNETS_JSON"
-            echo "TF_VAR_data_subnet_cidrs=$DATA_SUBNETS_JSON"
-          } >> "$GITHUB_ENV"
+          project_value=${PROJECT:-cardinal}
+          environment_value=${ENVIRONMENT:-prod}
+
+          echo "TF_VAR_aws_region=$AWS_REGION_VAR" >> "$GITHUB_ENV"
+          echo "TF_VAR_project=$project_value" >> "$GITHUB_ENV"
+          echo "TF_VAR_environment=$environment_value" >> "$GITHUB_ENV"
+          echo "TF_VAR_vpc_cidr=$VPC_CIDR" >> "$GITHUB_ENV"
+          echo "TF_VAR_frontend_image=$FRONTEND_IMAGE" >> "$GITHUB_ENV"
+          echo "TF_VAR_backend_image=$BACKEND_IMAGE" >> "$GITHUB_ENV"
+          echo "TF_VAR_database_secret_arn=$DATABASE_SECRET_ARN" >> "$GITHUB_ENV"
+          echo "TF_VAR_database_name=$DATABASE_NAME" >> "$GITHUB_ENV"
+          echo "TF_VAR_existing_rds_identifier=$EXISTING_RDS_IDENTIFIER" >> "$GITHUB_ENV"
+          echo "TF_VAR_azs=$AZS_JSON" >> "$GITHUB_ENV"
+          echo "TF_VAR_public_subnet_cidrs=$PUBLIC_SUBNETS_JSON" >> "$GITHUB_ENV"
+          echo "TF_VAR_private_subnet_cidrs=$PRIVATE_SUBNETS_JSON" >> "$GITHUB_ENV"
+          echo "TF_VAR_data_subnet_cidrs=$DATA_SUBNETS_JSON" >> "$GITHUB_ENV"
+
+          append_optional() {
+            local name="$1"
+            local value="${2:-}"
+            if [ -n "$value" ]; then
+              echo "${name}=${value}" >> "$GITHUB_ENV"
+            fi
+          }
+
+          append_optional "TF_VAR_frontend_certificate_arn" "$FRONTEND_CERTIFICATE_ARN"
+          append_optional "TF_VAR_backend_certificate_arn" "$BACKEND_CERTIFICATE_ARN"
+          append_optional "TF_VAR_waf_web_acl_arn" "$WAF_WEB_ACL_ARN"
+          append_optional "TF_VAR_backup_kms_key_arn" "$BACKUP_KMS_KEY_ARN"
 
       - name: Init
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -169,8 +177,13 @@ jobs:
             jq -r '.resource_changes[] | "\(.type) \(.name): actions=\(.change.actions)"' tfplan.json
           fi
 
-      - name: Upload plan
-        uses: actions/upload-artifact@v4
+      - name: Require confirm environment
+        if: github.event_name == 'workflow_dispatch'
+        uses: softprops/turnstyle@v2
         with:
-          name: tfplan
-          path: stacks/prod/tfplan
+          poll-interval-seconds: 5
+
+      - name: Apply
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform apply -no-color -input=false -auto-approve tfplan
+

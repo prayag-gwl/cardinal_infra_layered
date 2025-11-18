@@ -1,6 +1,6 @@
 # Terraform State Backend Bootstrap
 
-Provision the remote state backend (S3 bucket + DynamoDB lock table) that the main `stacks/dev` configuration depends on. This stack is intentionally small and uses local state so it can run **before** remote state exists.
+Provision the remote state backend (S3 bucket + DynamoDB lock table) that the main `stacks/prod` configuration depends on. This stack is intentionally small and uses local state so it can run **before** remote state exists.
 
 You can execute it locally or trigger the GitHub Actions workflow `Bootstrap Terraform Backend`, which wraps the same commands and reads values from repository secrets.
 
@@ -32,5 +32,5 @@ terraform apply -auto-approve \
 
 If you enabled KMS, configure the main workflow backend with the emitted `kms_key_arn` (or alias) along with the bucket, key, region, and DynamoDB table outputs.
 
-After running this bootstrap stack once, update the GitHub Actions workflow secrets to provide those values to the `terraform init` step in `.github/workflows/Dev-Terraform-apply.yml`.
+After running this bootstrap stack once, update the GitHub Actions workflow secrets to provide those values to the `terraform init` step in `.github/workflows/USW1-Terraform-plan.yml` and `.github/workflows/USW1-Terraform-apply.yml`.
 

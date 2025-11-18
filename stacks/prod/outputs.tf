@@ -23,11 +23,11 @@ output "backend_service_name" {
 }
 
 output "rds_endpoint" {
-  value = module.rds.endpoint
+  value = data.aws_db_instance.existing.endpoint
 }
 
 output "db_secret_arn" {
-  value = aws_secretsmanager_secret.db_credentials.arn
+  value = data.aws_secretsmanager_secret.db_credentials.arn
 }
 
 output "backup_vault_arn" {

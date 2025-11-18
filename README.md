@@ -3,25 +3,15 @@ Terraform modules and environment stacks for AWS.
 
 ### Layout
 - `modules/`: reusable modules (networking, ALB, ECS cluster/service, ECR, logging, RDS, backup, monitoring, common).
-- `stacks/dev/`: dev environment composition.
 - `stacks/prod/`: production-grade stack (multi-AZ networking, dual ALBs, RDS, backups, monitoring).
-- `.github/workflows/Dev-Terraform-apply.yml`: CI plan/apply for `develop`.
+- `.github/workflows/USW1-Terraform-plan.yml`: CI plan workflow for `us-west-1` production stack.
+- `.github/workflows/USW1-Terraform-apply.yml`: CI apply workflow for `us-west-1` production stack.
 - `.github/workflows/Bootstrap-state-backend.yml`: manual workflow to create/refresh remote state backend.
 - `bootstrap/state-backend/`: one-time stack to provision the remote state bucket and lock table.
 
 ### Prereqs
 - Terraform >= 1.5
 - AWS role assumable by GitHub OIDC (`AWS_ROLE_ARN` secret).
-
-### Dev stack (local)
-```bash
-cd stacks/dev
-terraform init
-terraform plan -var-file="terraform.tfvars"
-terraform apply -auto-approve -var-file="terraform.tfvars"
-```
-
-`terraform.tfvars` must supply the VPC/subnet/security group IDs that already exist in AWS (the dev stack does not create networking).
 
 ### Production stack
 
@@ -100,6 +90,6 @@ Add `-var 'enable_kms=true'` to create a dedicated KMS key.
 After the backend bucket/table exist and secrets are configured, run:
 
 - `Bootstrap Terraform Backend` workflow for one-time backend provisioning (completed).
-- `Develop Terraform Apply` workflow for CI `plan` + summary.
-- `stacks/prod` manually (or wire a production workflow) when you are ready to deploy infrastructure.
+- `USW1 Terraform Plan` workflow for CI `plan` validation.
+- `USW1 Terraform Apply` workflow for production deployment to `us-west-1`.
 

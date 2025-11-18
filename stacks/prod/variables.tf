@@ -78,14 +78,16 @@ variable "waf_web_acl_arn" {
 }
 
 variable "db_master_username" {
-  description = "Master username for RDS."
+  description = "Master username for RDS. Not used when RDS already exists."
   type        = string
+  default     = ""
 }
 
 variable "db_master_password" {
-  description = "Master password for RDS."
+  description = "Master password for RDS. Not used when RDS already exists."
   type        = string
   sensitive   = true
+  default     = ""
 }
 
 variable "db_kms_key_arn" {
@@ -95,7 +97,17 @@ variable "db_kms_key_arn" {
 }
 
 variable "database_secret_arn" {
-  description = "Secrets Manager secret ARN containing database credentials (JSON)."
+  description = "Secrets Manager secret ARN containing database credentials (JSON). Should contain host, username, password, port (but NOT database name)."
+  type        = string
+}
+
+variable "database_name" {
+  description = "PostgreSQL database name to connect to (e.g., cardinal-prod-db). This will be set as DB_NAME environment variable."
+  type        = string
+}
+
+variable "existing_rds_identifier" {
+  description = "Identifier of the existing RDS database instance to reference."
   type        = string
 }
 
