@@ -79,6 +79,14 @@ locals {
   vault_id = local.use_existing_vault ? data.aws_backup_vault.existing[0].id : aws_backup_vault.this[0].id
 }
 
+# Wait for vault to be fully available before creating backup plan
+resource "time_sleep" "vault_propagation" {
+  count = local.use_existing_vault ? 0 : 1
+  
+  depends_on = [aws_backup_vault.this]
+  create_duration = "10s"
+}
+
 resource "aws_backup_vault_notifications" "this" {
   count          = var.sns_topic_arn != "" ? 1 : 0
   backup_vault_name = local.vault_name_to_use
@@ -89,6 +97,16 @@ resource "aws_backup_vault_notifications" "this" {
 resource "aws_backup_plan" "this" {
   name = var.plan_name
   tags = var.tags
+
+  # Ensure vault exists and is fully propagated before creating plan
+  # When using existing vault, data source handles the dependency
+  # When creating new vault, wait for propagation
+  depends_on = local.use_existing_vault ? [
+    data.aws_backup_vault.existing
+  ] : [
+    aws_backup_vault.this,
+    time_sleep.vault_propagation
+  ]
 
   rule {
     rule_name         = "daily-full"
