@@ -296,7 +296,7 @@ module "backup" {
   # Set via GitHub variable USW1_BACKUP_KMS_KEY_ARN
   kms_key_arn       = var.backup_kms_key_arn != "" ? var.backup_kms_key_arn : ""
   create_kms_key    = var.backup_kms_key_arn == ""  # Don't create new key if ARN is provided
-  # Use existing vault since it already exists
-  existing_vault_name = "${var.project}-${var.environment}-db-backup-vault"
+  # Create new vault (empty = create new vault)
+  existing_vault_name = ""
 }
 
