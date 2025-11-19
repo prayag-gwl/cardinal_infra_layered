@@ -46,6 +46,11 @@ variable "rds_identifier" {
   type        = string
 }
 
+variable "aws_region" {
+  description = "AWS region for CloudWatch dashboard widgets."
+  type        = string
+}
+
 variable "tags" {
   description = "Tags to apply to monitoring resources."
   type        = map(string)

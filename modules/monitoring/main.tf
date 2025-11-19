@@ -147,7 +147,8 @@ resource "aws_cloudwatch_dashboard" "main" {
         width = 24
         height = 6
         properties = {
-          title = "ECS CPU Utilization"
+          title  = "ECS CPU Utilization"
+          region = var.aws_region
           metrics = [
             ["AWS/ECS", "CPUUtilization", "ClusterName", var.ecs_cluster_name, "ServiceName", var.frontend_service_name],
             ["AWS/ECS", "CPUUtilization", "ClusterName", var.ecs_cluster_name, "ServiceName", var.backend_service_name]
@@ -161,7 +162,8 @@ resource "aws_cloudwatch_dashboard" "main" {
         width = 24
         height = 6
         properties = {
-          title = "ALB Request Count vs 5XX"
+          title  = "ALB Request Count vs 5XX"
+          region = var.aws_region
           metrics = [
             ["AWS/ApplicationELB", "RequestCount", "LoadBalancer", var.alb_arn_suffix],
             ["AWS/ApplicationELB", "HTTPCode_ELB_5XX_Count", "LoadBalancer", var.alb_arn_suffix]
@@ -175,12 +177,14 @@ resource "aws_cloudwatch_dashboard" "main" {
         width = 24
         height = 6
         properties = {
-          title = "RDS Performance"
+          title  = "RDS Performance"
+          region = var.aws_region
           metrics = [
             ["AWS/RDS", "CPUUtilization", "DBInstanceIdentifier", var.rds_identifier],
             ["AWS/RDS", "FreeStorageSpace", "DBInstanceIdentifier", var.rds_identifier]
           ]
           period = 300
+          stat   = "Average"
         }
       }
     ]

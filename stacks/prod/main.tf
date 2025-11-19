@@ -280,6 +280,7 @@ module "monitoring" {
   frontend_tg_name        = module.alb_frontend.tg_frontend_name
   backend_tg_name         = coalesce(module.alb_backend.tg_backend_name, module.alb_frontend.tg_backend_name)
   rds_identifier          = data.aws_db_instance.existing.db_instance_identifier
+  aws_region               = var.aws_region
   tags                    = local.common_tags
 }
 
@@ -295,9 +296,7 @@ module "backup" {
   # Set via GitHub variable USW1_BACKUP_KMS_KEY_ARN
   kms_key_arn       = var.backup_kms_key_arn != "" ? var.backup_kms_key_arn : ""
   create_kms_key    = var.backup_kms_key_arn == ""  # Don't create new key if ARN is provided
-  # Set to vault name if you want to use existing vault, or empty to create new vault
-  # Since vault doesn't exist yet, leave empty to create it
-  # If vault exists in future, set this to vault name to use existing one
-  existing_vault_name = ""  # Empty = create new vault, set to vault name to use existing
+  # Use existing vault since it already exists
+  existing_vault_name = "${var.project}-${var.environment}-db-backup-vault"
 }
 
