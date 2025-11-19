@@ -72,21 +72,15 @@ module "logging" {
 
 module "ecr" {
   source           = "../../modules/ecr"
-  repository_names = ["${var.project}-frontend", "${var.project}-backend"]
+  repository_names = ["${var.project}-frontend-${var.environment}", "${var.project}-backend-${var.environment}"]
   tags             = local.common_tags
-}
-
-resource "aws_cloudwatch_log_group" "ecs_exec" {
-  name              = "/aws/ecs/${var.project}-${var.environment}-exec"
-  retention_in_days = 30
-  tags              = local.common_tags
 }
 
 module "ecs_cluster" {
   source                     = "../../modules/ecs-cluster"
   name                       = "${var.project}-${var.environment}-cluster"
   tags                       = local.common_tags
-  exec_log_group_name        = aws_cloudwatch_log_group.ecs_exec.name
+  exec_log_group_name        = "/aws/ecs/${var.project}-${var.environment}-exec"
   capacity_providers         = ["FARGATE", "FARGATE_SPOT"]
   default_capacity_provider_strategy = [
     {
@@ -240,5 +234,7 @@ module "backup" {
   tags              = local.common_tags
   sns_topic_arn     = ""
   copy_actions      = var.backup_copy_actions
+  kms_key_arn       = var.backup_kms_key_arn != "" ? var.backup_kms_key_arn : ""
+  create_kms_key    = var.backup_kms_key_arn == ""
 }
 

@@ -129,6 +129,12 @@ variable "backup_copy_actions" {
   default = []
 }
 
+variable "backup_kms_key_arn" {
+  description = "ARN of existing KMS key for backup vault encryption. If provided, Terraform will use this key instead of creating a new one."
+  type        = string
+  default     = ""
+}
+
 variable "frontend_health_path" {
   description = "Frontend health check path."
   type        = string
