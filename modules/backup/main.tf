@@ -1,6 +1,8 @@
 locals {
   vault_kms_arn  = var.create_kms_key && var.kms_key_arn == "" ? aws_kms_key.vault[0].arn : (var.kms_key_arn != "" ? var.kms_key_arn : null)
   backup_role_arn = var.iam_role_arn != "" ? var.iam_role_arn : (var.create_backup_role ? aws_iam_role.backup[0].arn : null)
+  use_existing_vault = var.existing_vault_name != ""
+  vault_name_to_use = var.existing_vault_name != "" ? var.existing_vault_name : var.vault_name
 }
 
 resource "aws_kms_key" "vault" {
@@ -47,17 +49,41 @@ resource "aws_iam_role_policy_attachment" "backup_restore" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSBackupServiceRolePolicyForRestores"
 }
 
+# Data source to read existing backup vault if specified
+# This will fail if vault doesn't exist, but that's handled by the conditional creation below
+data "aws_backup_vault" "existing" {
+  count = local.use_existing_vault ? 1 : 0
+  name  = var.existing_vault_name
+}
+
+# Create backup vault - only if not using existing one
+# If existing_vault_name is provided, we try to use data source first
+# If data source fails (vault doesn't exist), this will create it
+# Note: If vault already exists and you get "already exists" error, import it:
+# terraform import 'module.backup.aws_backup_vault.this[0]' <vault-name>
 resource "aws_backup_vault" "this" {
+  count       = local.use_existing_vault ? 0 : 1
   name        = var.vault_name
   kms_key_arn = local.vault_kms_arn
   tags        = var.tags
+
+  lifecycle {
+    # Ignore changes to name after creation to handle existing vaults
+    ignore_changes = [name]
+  }
+}
+
+# Local to get the vault ARN (either from data source or resource)
+locals {
+  vault_arn = local.use_existing_vault ? data.aws_backup_vault.existing[0].arn : aws_backup_vault.this[0].arn
+  vault_id = local.use_existing_vault ? data.aws_backup_vault.existing[0].id : aws_backup_vault.this[0].id
 }
 
 resource "aws_backup_vault_notifications" "this" {
   count          = var.sns_topic_arn != "" ? 1 : 0
-  backup_vault_name = aws_backup_vault.this.name
+  backup_vault_name = local.vault_name_to_use
   sns_topic_arn     = var.sns_topic_arn
-  backup_vault_events = ["BACKUP_JOB_COMPLETED", "RESTORE_JOB_COMPLETED", "BACKUP_JOB_FAILED", "RESTORE_JOB_FAILED"]
+  backup_vault_events = ["BACKUP_JOB_COMPLETED", "RESTORE_JOB_FAILED", "RESTORE_JOB_COMPLETED", "BACKUP_JOB_FAILED"]
 }
 
 resource "aws_backup_plan" "this" {
@@ -66,7 +92,7 @@ resource "aws_backup_plan" "this" {
 
   rule {
     rule_name         = "daily-full"
-    target_vault_name = aws_backup_vault.this.name
+    target_vault_name = local.vault_name_to_use
     schedule          = "cron(0 5 * * ? *)"
     start_window      = 60
     completion_window = 180
@@ -91,7 +117,7 @@ resource "aws_backup_plan" "this" {
 
   rule {
     rule_name         = "hourly-incremental"
-    target_vault_name = aws_backup_vault.this.name
+    target_vault_name = local.vault_name_to_use
     schedule          = "cron(0 * * * ? *)"
     start_window      = 60
     completion_window = 120

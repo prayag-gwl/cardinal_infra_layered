@@ -61,3 +61,9 @@ variable "tags" {
   default     = {}
 }
 
+variable "existing_vault_name" {
+  description = "Name of existing backup vault to use instead of creating a new one. If provided, Terraform will use this vault instead of creating a new one."
+  type        = string
+  default     = ""
+}
+

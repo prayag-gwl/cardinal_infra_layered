@@ -1,6 +1,6 @@
 output "vault_arn" {
-  value       = aws_backup_vault.this.arn
-  description = "ARN of the backup vault."
+  value       = local.vault_arn
+  description = "ARN of the backup vault (existing or created)."
 }
 
 output "plan_id" {

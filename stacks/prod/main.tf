@@ -62,7 +62,15 @@ resource "aws_s3_bucket_policy" "alb_logs" {
       {
         Effect = "Allow"
         Principal = {
-          Service = "delivery.logs.amazonaws.com"
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action   = "s3:PutObject"
+        Resource = "${aws_s3_bucket.alb_logs.arn}/*"
+      },
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "logdelivery.elasticloadbalancing.amazonaws.com"
         }
         Action   = "s3:PutObject"
         Resource = "${aws_s3_bucket.alb_logs.arn}/*"
@@ -75,7 +83,7 @@ resource "aws_s3_bucket_policy" "alb_logs" {
       {
         Effect = "Allow"
         Principal = {
-          Service = "delivery.logs.amazonaws.com"
+          Service = "logdelivery.elasticloadbalancing.amazonaws.com"
         }
         Action   = "s3:GetBucketAcl"
         Resource = aws_s3_bucket.alb_logs.arn
@@ -91,7 +99,7 @@ resource "aws_s3_bucket_policy" "alb_logs" {
 # Wait for S3 bucket policy to propagate before creating ALBs
 resource "time_sleep" "alb_logs_policy_propagation" {
   depends_on = [aws_s3_bucket_policy.alb_logs]
-  create_duration = "10s"
+  create_duration = "30s"
 }
 
 module "networking" {
@@ -283,7 +291,13 @@ module "backup" {
   tags              = local.common_tags
   sns_topic_arn     = ""
   copy_actions      = var.backup_copy_actions
+  # Use existing KMS key (ECS-Prod-KMS-Key: 6095c589-7d7e-4581-b4f7-cc2009762310)
+  # Set via GitHub variable USW1_BACKUP_KMS_KEY_ARN
   kms_key_arn       = var.backup_kms_key_arn != "" ? var.backup_kms_key_arn : ""
-  create_kms_key    = var.backup_kms_key_arn == ""
+  create_kms_key    = var.backup_kms_key_arn == ""  # Don't create new key if ARN is provided
+  # Set to vault name if you want to use existing vault, or empty to create new vault
+  # Since vault doesn't exist yet, leave empty to create it
+  # If vault exists in future, set this to vault name to use existing one
+  existing_vault_name = ""  # Empty = create new vault, set to vault name to use existing
 }
 
