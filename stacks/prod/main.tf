@@ -49,6 +49,51 @@ resource "aws_s3_bucket_public_access_block" "alb_logs" {
   restrict_public_buckets = true
 }
 
+# Get AWS account ID and region for ALB access logs policy
+data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
+
+resource "aws_s3_bucket_policy" "alb_logs" {
+  bucket = aws_s3_bucket.alb_logs.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "delivery.logs.amazonaws.com"
+        }
+        Action   = "s3:PutObject"
+        Resource = "${aws_s3_bucket.alb_logs.arn}/*"
+        Condition = {
+          StringEquals = {
+            "s3:x-amz-acl" = "bucket-owner-full-control"
+          }
+        }
+      },
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "delivery.logs.amazonaws.com"
+        }
+        Action   = "s3:GetBucketAcl"
+        Resource = aws_s3_bucket.alb_logs.arn
+      }
+    ]
+  })
+
+  depends_on = [
+    aws_s3_bucket_public_access_block.alb_logs
+  ]
+}
+
+# Wait for S3 bucket policy to propagate before creating ALBs
+resource "time_sleep" "alb_logs_policy_propagation" {
+  depends_on = [aws_s3_bucket_policy.alb_logs]
+  create_duration = "10s"
+}
+
 module "networking" {
   source              = "../../modules/networking"
   azs                 = var.azs
@@ -114,6 +159,8 @@ module "alb_frontend" {
   access_logs_prefix       = "frontend"
   waf_web_acl_arn          = var.waf_web_acl_arn
   tags                     = local.common_tags
+
+  depends_on = [time_sleep.alb_logs_policy_propagation]
 }
 
 module "alb_backend" {
@@ -132,6 +179,8 @@ module "alb_backend" {
   access_logs_prefix       = "backend"
   enable_http_redirect     = false
   tags                     = local.common_tags
+
+  depends_on = [time_sleep.alb_logs_policy_propagation]
 }
 
 module "frontend_service" {
