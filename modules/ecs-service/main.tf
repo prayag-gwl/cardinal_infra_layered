@@ -19,7 +19,7 @@ resource "aws_iam_role_policy_attachment" "exec" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# Grant execution role permission to pull secrets from Secrets Manager
+# Grant execution role permission to pull secrets from Secrets Manager and ECS Exec
 resource "aws_iam_role_policy" "exec_secrets" {
   count = length(var.secret_arns) > 0 ? 1 : 0
 
@@ -37,6 +37,31 @@ resource "aws_iam_role_policy" "exec_secrets" {
       {
         Effect   = "Allow"
         Action   = ["kms:Decrypt"]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# Grant execution role permissions for ECS Exec (if enabled)
+# Note: CloudWatch Logs permissions are already included in AmazonECSTaskExecutionRolePolicy
+resource "aws_iam_role_policy" "exec_ecs_exec" {
+  count = var.enable_execute_command ? 1 : 0
+
+  name = "${var.service_name}-exec-ecs-exec"
+  role = aws_iam_role.task_exec.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ssmmessages:CreateControlChannel",
+          "ssmmessages:CreateDataChannel",
+          "ssmmessages:OpenControlChannel",
+          "ssmmessages:OpenDataChannel"
+        ]
         Resource = "*"
       }
     ]
