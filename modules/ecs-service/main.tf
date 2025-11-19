@@ -19,6 +19,30 @@ resource "aws_iam_role_policy_attachment" "exec" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
+# Grant execution role permission to pull secrets from Secrets Manager
+resource "aws_iam_role_policy" "exec_secrets" {
+  count = length(var.secret_arns) > 0 ? 1 : 0
+
+  name = "${var.service_name}-exec-secrets"
+  role = aws_iam_role.task_exec.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = var.secret_arns
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt"]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 resource "aws_iam_role" "task" {
   name               = "${var.service_name}-task-role"
   assume_role_policy = data.aws_iam_policy_document.assume.json
