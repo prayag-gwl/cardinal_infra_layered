@@ -261,9 +261,7 @@ module "frontend_service" {
   subnet_ids         = var.existing_private_subnets
   security_group_id  = aws_security_group.prod_ecs.id
   target_group_arn   = module.alb_prod.tg_frontend_arn
-  environment_vars   = merge(var.frontend_env, local.db_env_vars, {
-    DB_HOST = var.existing_rds_endpoint
-  })
+  environment_vars   = merge(var.frontend_env, local.db_env_vars)
   memory             = "3072"
   container_port     = 3000
   health_check = {
@@ -297,9 +295,7 @@ module "backend_service" {
   subnet_ids         = var.existing_private_subnets
   security_group_id  = aws_security_group.prod_ecs.id
   target_group_arn   = module.alb_prod.tg_backend_arn
-  environment_vars   = merge(var.backend_env, local.db_env_vars, {
-    DB_HOST = var.existing_rds_endpoint
-  })
+  environment_vars   = merge(var.backend_env, local.db_env_vars)
   memory             = "3072"
   container_port     = 3000
   desired_count      = 1
@@ -357,8 +353,10 @@ module "backup" {
   # Use existing KMS key - set via GitHub variable USW1_BACKUP_KMS_KEY_ARN
   kms_key_arn         = var.backup_kms_key_arn != "" ? var.backup_kms_key_arn : ""
   create_kms_key      = false  # Never create new KMS key, always use existing
-  # No existing vault name - backup plan will use its associated vault
-  existing_vault_name = ""  # Leave empty - existing backup plan already has a vault
+  # Use existing backup vault - the existing backup plan is associated with a vault
+  # If the vault name is not provided, we'll try to create it (which will fail if it exists)
+  # The vault name should match the one associated with the existing backup plan
+  existing_vault_name = var.existing_backup_vault_name != "" ? var.existing_backup_vault_name : ""
   # Use existing backup plan - set via GitHub variable USW1_EXISTING_BACKUP_PLAN_ID
   existing_plan_id    = var.existing_backup_plan_id != "" ? var.existing_backup_plan_id : ""
   create_backup_plan  = var.existing_backup_plan_id == ""  # Only create plan if existing_plan_id is not provided

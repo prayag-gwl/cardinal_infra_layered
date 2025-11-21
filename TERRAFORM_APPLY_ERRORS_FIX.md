@@ -1,116 +1,93 @@
-# Terraform Apply Errors - Fix Guide
-
-> **⚠️ IMPORTANT:** Before fixing the errors, you need to clean up the partially created resources from the previous failed apply.  
-> See **[AWS_CONSOLE_CLEANUP_GUIDE.md](./AWS_CONSOLE_CLEANUP_GUIDE.md)** for step-by-step instructions.
+# Terraform Apply Errors - Fix Summary
 
 ## Errors Found in Apply Logs
 
-### 1. ✅ FIXED: Duplicate CloudWatch Log Group
+### 1. ✅ FIXED: ECS Task Definition - DB_HOST Conflict
+
 **Error:**
 ```
-Error: creating CloudWatch Logs Log Group (/aws/ecs/cardinal-prod-exec): ResourceAlreadyExistsException
+ClientException: The secret name must be unique and not shared with any new or existing environment variables set on the container, such as 'DB_HOST'.
 ```
 
-**Root Cause:** The log group `/aws/ecs/cardinal-prod-exec` was being created twice:
-- Once in the `logging` module
-- Once as a standalone resource `aws_cloudwatch_log_group.ecs_exec`
+**Root Cause:**
+- `DB_HOST` was being set both as:
+  - An environment variable: `DB_HOST = var.existing_rds_endpoint`
+  - A secret from Secrets Manager: `{ name = "DB_HOST", suffix = ":host::" }`
+- ECS doesn't allow the same name for both an environment variable and a secret.
 
-**Fix Applied:** Removed the duplicate standalone resource. The log group is now only created by the `logging` module.
+**Fix:**
+- Removed `DB_HOST` from environment variables in both frontend and backend service configurations.
+- `DB_HOST` now comes only from Secrets Manager (as intended).
+
+**Files Changed:**
+- `stacks/prod/main.tf` - Removed `DB_HOST = var.existing_rds_endpoint` from environment_vars
 
 ---
 
-### 2. ⚠️ REQUIRES MANUAL ACTION: ECR Repository Already Exists
+### 2. ⚠️ NEEDS ATTENTION: Backup Vault Already Exists
+
 **Error:**
 ```
-Error: creating ECR Repository (cardinal-frontend-prod): RepositoryAlreadyExistsException
+AlreadyExistsException: Backup vault with the same name already exists
 ```
 
-**Root Cause:** The ECR repositories `cardinal-frontend-prod` and `cardinal-backend-prod` already exist in your AWS account.
+**Root Cause:**
+- The backup vault `cardinal-prod-db-backup-vault` already exists.
+- `EXISTING_BACKUP_VAULT_NAME` was empty, so Terraform tried to create a new vault.
+- The existing backup plan is already associated with a vault.
 
-**Solution:** Import existing ECR repositories into Terraform state:
+**Fix Options:**
 
+**Option A: Import Existing Vault (Recommended)**
 ```bash
 cd stacks/prod
-terraform init
-terraform import 'module.ecr.aws_ecr_repository.repo["cardinal-frontend-prod"]' cardinal-frontend-prod
-terraform import 'module.ecr.aws_ecr_repository.repo["cardinal-backend-prod"]' cardinal-backend-prod
+terraform import 'module.backup.aws_backup_vault.this[0]' cardinal-prod-db-backup-vault
 ```
 
-**Note:** If the repositories have different names (e.g., `cardinal-frontend` without `-prod`), you'll need to either:
-- Rename them in AWS to match the new naming convention, or
-- Update the Terraform code to match existing names
+**Option B: Provide Existing Vault Name**
+- Set GitHub variable `USW1_EXISTING_BACKUP_VAULT_NAME` to the actual vault name.
+- The code will use a data source instead of trying to create it.
 
-**Alternative:** If you don't want Terraform to manage these repositories, you can remove the `ecr` module from `stacks/prod/main.tf` and use data sources instead.
+**Option C: Use Different Vault Name**
+- Change the vault name in `stacks/prod/main.tf` to avoid conflict.
+
+**Current Status:**
+- Code updated to use `var.existing_backup_vault_name` if provided.
+- If vault name is provided, it will use data source instead of creating.
 
 ---
 
-### 3. ⚠️ REQUIRES GITHUB VARIABLE UPDATE: Invalid Availability Zone
-**Error:**
-```
-Error: creating EC2 Subnet: InvalidParameterValue: Value (***b) for parameter availabilityZone is invalid. 
-Subnets can currently only be created in the following availability zones: ***a, ***c.
-```
+## Summary of Changes
 
-**Root Cause:** The `USW1_AZS` GitHub variable is set to 3 availability zones (`us-west-1a`, `us-west-1b`, `us-west-1c`), but `us-west-1` only has 2 AZs available: `us-west-1a` and `us-west-1c`.
-
-**Solution:** Update the `USW1_AZS` GitHub variable to only include 2 AZs:
-
-1. Go to GitHub Repository → Settings → Secrets and variables → Actions → Variables
-2. Find `USW1_AZS`
-3. Update the value to: `["us-west-1a","us-west-1c"]` (JSON array format)
-
-**Also update these related variables:**
-- `USW1_PUBLIC_SUBNET_CIDRS`: Should have 2 CIDRs (one per AZ)
-- `USW1_PRIVATE_SUBNET_CIDRS`: Should have 2 CIDRs (one per AZ)
-
-Example:
-- `USW1_PUBLIC_SUBNET_CIDRS`: `["10.10.0.0/22","10.10.4.0/22"]`
-- `USW1_PRIVATE_SUBNET_CIDRS`: `["10.10.12.0/22","10.10.16.0/22"]`
+1. ✅ Removed `DB_HOST` from environment variables (frontend and backend)
+2. ✅ Updated backup module to use `existing_backup_vault_name` variable
+3. ⚠️ Need to either import existing vault or provide vault name in GitHub variables
 
 ---
 
-### 4. ⚠️ REQUIRES AWS ACCOUNT ACTION: EIP Limit Exceeded
-**Error:**
-```
-Error: creating EC2 EIP: AddressLimitExceeded: The maximum number of addresses has been reached.
-```
+## Next Steps
 
-**Root Cause:** Your AWS account has reached the default limit of 5 Elastic IP addresses per region. The Terraform script tries to create 3 NAT gateways (one per AZ), each requiring an EIP.
-
-**Solutions:**
-
-**Option A: Reduce NAT Gateways (Recommended)**
-Since `us-west-1` only has 2 AZs, we should only create 2 NAT gateways. However, the networking module creates NAT gateways based on the number of AZs. With the AZ fix above (using only 2 AZs), this should automatically resolve.
-
-**Option B: Request EIP Limit Increase**
-1. Go to AWS Support Center
-2. Request a service limit increase for "EC2-VPC Elastic IPs"
-3. Request increase to at least 10 EIPs for `us-west-1`
-
-**Option C: Release Unused EIPs**
-1. Go to EC2 Console → Elastic IPs
-2. Identify and release any unused EIPs
-3. Ensure you have at least 2 free EIPs for NAT gateways
+1. **Import existing backup vault** OR **set `USW1_EXISTING_BACKUP_VAULT_NAME`** in GitHub variables
+2. Re-run Terraform apply
+3. Verify all resources are created successfully
 
 ---
 
-## Summary of Actions Required
+## Resources Created Successfully
 
-1. ✅ **Fixed in code:** Duplicate CloudWatch log group
-2. 🔧 **Manual import needed:** Import existing ECR repositories
-3. 🔧 **Update GitHub variable:** Change `USW1_AZS` to use only 2 AZs
-4. 🔧 **Update GitHub variables:** Adjust subnet CIDRs to match 2 AZs
-5. 🔧 **AWS account:** Ensure you have at least 2 free EIPs (or request limit increase)
+From the logs, these resources were created before errors:
+- ✅ ALB: `cardinal-prod-alb`
+- ✅ Target Groups: `tg-cardinal-prod-frontend-3000`, `tg-cardinal-prod-backend-3000`
+- ✅ ECS Cluster: `cardinal-prod-cluster`
+- ✅ Security Groups: `cardinal-prod-alb-sg`, `cardinal-prod-ecs-sg`
+- ✅ IAM Roles for ECS tasks
+- ✅ CloudWatch Log Groups
+- ✅ S3 Bucket for ALB logs
+- ✅ ALB Listeners and Rules
+- ✅ CloudWatch Alarms
 
----
+## Resources Failed to Create
 
-## After Fixes, Re-run Apply
-
-Once you've completed the above steps:
-
-1. Import ECR repositories (if needed)
-2. Update GitHub variables for AZs and subnets
-3. Re-run the `USW1 Terraform Apply` workflow
-
-The apply should succeed after these fixes.
-
+- ❌ Backup Vault (already exists - needs import or vault name)
+- ❌ ECS Task Definitions (fixed - DB_HOST conflict resolved)
+- ❌ ECS Services (depends on task definitions)
