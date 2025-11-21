@@ -10,31 +10,46 @@ variable "environment" {
   default     = "prod"
 }
 
+variable "aws_region" {
+  description = "AWS region to deploy resources."
+  type        = string
+}
+
 variable "azs" {
   description = "Availability zones to deploy into."
   type        = list(string)
 }
 
-variable "vpc_cidr" {
-  description = "CIDR block for the VPC."
+# Existing VPC and networking resources (reused from DEV)
+variable "existing_vpc_id" {
+  description = "ID of the existing VPC to reuse (e.g., cardinal-vpc)."
   type        = string
-  default     = "10.0.0.0/16"
 }
 
-variable "public_subnet_cidrs" {
-  description = "Public subnet CIDRs corresponding to the AZ list."
+variable "existing_public_subnets" {
+  description = "List of existing public subnet IDs to use for ALB."
   type        = list(string)
 }
 
-variable "private_subnet_cidrs" {
-  description = "Private subnet CIDRs corresponding to the AZ list."
+variable "existing_private_subnets" {
+  description = "List of existing private subnet IDs to use for ECS tasks."
   type        = list(string)
 }
 
-variable "data_subnet_cidrs" {
-  description = "Optional data subnet CIDRs corresponding to the AZ list."
+variable "existing_db_subnets" {
+  description = "List of existing database subnet IDs (optional, defaults to private subnets)."
   type        = list(string)
   default     = []
+}
+
+variable "existing_rds_sg_id" {
+  description = "Security group ID of the existing RDS instance."
+  type        = string
+}
+
+variable "existing_rds_endpoint" {
+  description = "Endpoint (hostname) of the existing RDS instance."
+  type        = string
 }
 
 variable "frontend_image" {
@@ -77,39 +92,16 @@ variable "waf_web_acl_arn" {
   default     = ""
 }
 
-variable "db_master_username" {
-  description = "Master username for RDS. Not used when RDS already exists."
-  type        = string
-  default     = ""
-}
-
-variable "db_master_password" {
-  description = "Master password for RDS. Not used when RDS already exists."
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
-variable "db_kms_key_arn" {
-  description = "Optional existing KMS key ARN for RDS encryption."
-  type        = string
-  default     = ""
-}
-
 variable "database_secret_arn" {
-  description = "Secrets Manager secret ARN containing database credentials (JSON). Should contain host, username, password, port (but NOT database name)."
-  type        = string
-}
-
-variable "database_name" {
-  description = "PostgreSQL database name to connect to (e.g., cardinal-prod-db). This will be set as DB_NAME environment variable."
+  description = "Secrets Manager secret ARN containing database credentials (JSON). Required. Should contain host, username, password, port, database."
   type        = string
 }
 
 variable "existing_rds_identifier" {
-  description = "Identifier of the existing RDS database instance to reference."
+  description = "Identifier of the existing RDS database instance to reference (reused from DEV)."
   type        = string
 }
+
 
 variable "alarm_emails" {
   description = "Email addresses for alert subscriptions."
@@ -135,6 +127,24 @@ variable "backup_kms_key_arn" {
   default     = ""
 }
 
+variable "existing_backup_vault_name" {
+  description = "Name of existing backup vault to use. If provided, Terraform will not create a new vault."
+  type        = string
+  default     = ""
+}
+
+variable "existing_backup_plan_id" {
+  description = "ID of existing backup plan to use. If provided, Terraform will not create a new backup plan."
+  type        = string
+  default     = ""
+}
+
+variable "backup_iam_role_arn" {
+  description = "ARN of existing IAM role for AWS Backup. If provided, Terraform will use this role instead of creating a new one."
+  type        = string
+  default     = ""
+}
+
 variable "frontend_health_path" {
   description = "Frontend health check path."
   type        = string
@@ -145,6 +155,18 @@ variable "backend_health_path" {
   description = "Backend health check path."
   type        = string
   default     = "/api/cardinal-education-service/v1/health"
+}
+
+variable "frontend_host_header" {
+  description = "Host header for frontend service routing (e.g., beta.cedu.app)."
+  type        = string
+  default     = "beta.cedu.app"
+}
+
+variable "backend_host_header" {
+  description = "Host header for backend service routing (e.g., api.cedu.app)."
+  type        = string
+  default     = "api.cedu.app"
 }
 
 variable "extra_tags" {

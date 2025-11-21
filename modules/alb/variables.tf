@@ -72,6 +72,26 @@ variable "waf_web_acl_arn" {
   type        = string
   default     = ""
 }
+variable "frontend_host_header" {
+  description = "Host header for frontend service routing (e.g., beta.cedu.app)."
+  type        = string
+  default     = ""
+}
+variable "backend_host_header" {
+  description = "Host header for backend service routing (e.g., api.cedu.app)."
+  type        = string
+  default     = ""
+}
+variable "frontend_target_group_name" {
+  description = "Custom name for frontend target group. If not provided, will be generated from ALB name."
+  type        = string
+  default     = ""
+}
+variable "backend_target_group_name" {
+  description = "Custom name for backend target group. If not provided, will be generated from ALB name."
+  type        = string
+  default     = ""
+}
 variable "tags" {
   description = "Tags to apply to the ALB resources."
   type        = map(string)

@@ -3,6 +3,7 @@ locals {
   backup_role_arn = var.iam_role_arn != "" ? var.iam_role_arn : (var.create_backup_role ? aws_iam_role.backup[0].arn : null)
   use_existing_vault = var.existing_vault_name != ""
   vault_name_to_use = var.existing_vault_name != "" ? var.existing_vault_name : var.vault_name
+  use_existing_plan = var.existing_plan_id != ""
 }
 
 resource "aws_kms_key" "vault" {
@@ -94,7 +95,14 @@ resource "aws_backup_vault_notifications" "this" {
   backup_vault_events = ["BACKUP_JOB_COMPLETED", "RESTORE_JOB_FAILED", "RESTORE_JOB_COMPLETED", "BACKUP_JOB_FAILED"]
 }
 
+# Data source for existing backup plan if provided
+data "aws_backup_plan" "existing" {
+  count = var.existing_plan_id != "" ? 1 : 0
+  plan_id = var.existing_plan_id
+}
+
 resource "aws_backup_plan" "this" {
+  count = var.create_backup_plan ? 1 : 0
   name = var.plan_name
   tags = var.tags
 
@@ -146,8 +154,9 @@ resource "aws_backup_plan" "this" {
 }
 
 resource "aws_backup_selection" "this" {
+  count        = var.create_backup_plan ? 1 : 0
   name         = "${var.plan_name}-selection"
-  plan_id      = aws_backup_plan.this.id
+  plan_id      = aws_backup_plan.this[0].id
   iam_role_arn = var.iam_role_arn != "" ? var.iam_role_arn : aws_iam_role.backup[0].arn
 
   resources = var.backup_resources

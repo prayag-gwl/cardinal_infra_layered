@@ -4,8 +4,8 @@ output "vault_arn" {
 }
 
 output "plan_id" {
-  value       = aws_backup_plan.this.id
-  description = "ID of the backup plan."
+  value       = var.existing_plan_id != "" ? var.existing_plan_id : (var.create_backup_plan ? aws_backup_plan.this[0].id : null)
+  description = "ID of the backup plan (existing or created)."
 }
 
 output "role_arn" {

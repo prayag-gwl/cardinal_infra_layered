@@ -33,3 +33,13 @@ output "tg_backend_name" {
   description = "Backend target group name."
 }
 
+output "https_listener_arn" {
+  value       = try(aws_lb_listener.https[0].arn, null)
+  description = "ARN of the HTTPS listener (port 443)."
+}
+
+output "http_listener_arn" {
+  value       = aws_lb_listener.http.arn
+  description = "ARN of the HTTP listener (port 80)."
+}
+

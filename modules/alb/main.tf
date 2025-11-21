@@ -1,7 +1,9 @@
 locals {
-  default_target_group_arn = var.enable_frontend_target ? try(aws_lb_target_group.frontend[0].arn, null) : try(aws_lb_target_group.backend[0].arn, null)
-  frontend_tg_name         = substr("${var.name}-fe", 0, 32)
-  backend_tg_name          = substr("${var.name}-be", 0, 32)
+  # Default target group is frontend (for default action on HTTPS listener)
+  default_target_group_arn = var.enable_frontend_target ? aws_lb_target_group.frontend[0].arn : (var.enable_backend_target ? aws_lb_target_group.backend[0].arn : null)
+  # Use provided target group names or generate from ALB name
+  frontend_tg_name         = var.frontend_target_group_name != "" ? substr(var.frontend_target_group_name, 0, 32) : substr("${var.name}-fe-3000", 0, 32)
+  backend_tg_name          = var.backend_target_group_name != "" ? substr(var.backend_target_group_name, 0, 32) : substr("${var.name}-be-3000", 0, 32)
 }
 
 resource "aws_lb" "this" {
@@ -63,30 +65,13 @@ resource "aws_lb_listener" "http" {
   port              = 80
   protocol          = "HTTP"
 
-  dynamic "default_action" {
-    for_each = var.enable_http_redirect ? [1] : []
-    content {
-      type = "redirect"
-      redirect {
-        port        = "443"
-        protocol    = "HTTPS"
-        status_code = "HTTP_301"
-      }
+  default_action {
+    type = "redirect"
+    redirect {
+      port        = "443"
+      protocol    = "HTTPS"
+      status_code = "HTTP_301"
     }
-  }
-
-  dynamic "default_action" {
-    for_each = var.enable_http_redirect ? [] : [1]
-    content {
-      type             = "forward"
-      target_group_arn = local.default_target_group_arn
-    }
-  }
-
-  lifecycle {
-    ignore_changes = [
-      default_action
-    ]
   }
 }
 
@@ -98,16 +83,36 @@ resource "aws_lb_listener" "https" {
   ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
   certificate_arn   = var.certificate_arn
 
+  # Default action: forward to frontend target group
   default_action {
     type             = "forward"
-    target_group_arn = local.default_target_group_arn
+    target_group_arn = aws_lb_target_group.frontend[0].arn
   }
 }
 
-resource "aws_lb_listener_rule" "http_api" {
-  count        = var.enable_frontend_target && var.enable_backend_target ? 1 : 0
-  listener_arn = var.enable_https_listener ? aws_lb_listener.https[0].arn : aws_lb_listener.http.arn
-  priority     = 10
+# Priority 1: Frontend host header (beta.cedu.app) → frontend TG
+resource "aws_lb_listener_rule" "frontend_host" {
+  count        = var.enable_https_listener && var.enable_frontend_target && var.frontend_host_header != "" ? 1 : 0
+  listener_arn = aws_lb_listener.https[0].arn
+  priority     = 1
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.frontend[0].arn
+  }
+
+  condition {
+    host_header {
+      values = [var.frontend_host_header]
+    }
+  }
+}
+
+# Priority 2: Backend host header (api.cedu.app) → backend TG
+resource "aws_lb_listener_rule" "backend_host" {
+  count        = var.enable_https_listener && var.enable_backend_target && var.backend_host_header != "" ? 1 : 0
+  listener_arn = aws_lb_listener.https[0].arn
+  priority     = 2
 
   action {
     type             = "forward"
@@ -115,8 +120,8 @@ resource "aws_lb_listener_rule" "http_api" {
   }
 
   condition {
-    path_pattern {
-      values = ["/api/*"]
+    host_header {
+      values = [var.backend_host_header]
     }
   }
 }

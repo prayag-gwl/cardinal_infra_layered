@@ -67,3 +67,15 @@ variable "existing_vault_name" {
   default     = ""
 }
 
+variable "existing_plan_id" {
+  description = "ID of existing backup plan to use instead of creating a new one. If provided, Terraform will not create a new backup plan."
+  type        = string
+  default     = ""
+}
+
+variable "create_backup_plan" {
+  description = "Whether to create a new backup plan. Set to false if using existing_plan_id."
+  type        = bool
+  default     = true
+}
+
