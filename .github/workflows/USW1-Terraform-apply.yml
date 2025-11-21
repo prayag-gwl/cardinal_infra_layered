@@ -66,6 +66,8 @@ jobs:
           EXISTING_BACKUP_VAULT_NAME: ${{ vars.USW1_EXISTING_BACKUP_VAULT_NAME || '' }}
           EXISTING_BACKUP_PLAN_ID: ${{ vars.USW1_EXISTING_BACKUP_PLAN_ID || '' }}
           BACKUP_IAM_ROLE_ARN: ${{ vars.USW1_BACKUP_IAM_ROLE_ARN || '' }}
+          FRONTEND_HOST_HEADER: ${{ vars.USW1_FRONTEND_HOST_HEADER || 'beta.cedu.app' }}
+          BACKEND_HOST_HEADER: ${{ vars.USW1_BACKEND_HOST_HEADER || 'api.cedu.app' }}
         run: |
           set -euo pipefail
           required_vars=(
@@ -117,6 +119,8 @@ jobs:
           echo "TF_VAR_frontend_image=$FRONTEND_IMAGE" >> "$GITHUB_ENV"
           echo "TF_VAR_backend_image=$BACKEND_IMAGE" >> "$GITHUB_ENV"
           echo "TF_VAR_database_secret_arn=$DATABASE_SECRET_ARN" >> "$GITHUB_ENV"
+          echo "TF_VAR_frontend_host_header=$FRONTEND_HOST_HEADER" >> "$GITHUB_ENV"
+          echo "TF_VAR_backend_host_header=$BACKEND_HOST_HEADER" >> "$GITHUB_ENV"
 
           append_optional() {
             local name="$1"
