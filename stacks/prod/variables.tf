@@ -16,8 +16,9 @@ variable "aws_region" {
 }
 
 variable "azs" {
-  description = "Availability zones to deploy into."
+  description = "Availability zones to deploy into. Not required for PROD (using existing VPC/subnets)."
   type        = list(string)
+  default     = []
 }
 
 # Existing VPC and networking resources (reused from DEV)
