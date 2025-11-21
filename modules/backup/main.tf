@@ -109,9 +109,8 @@ resource "aws_backup_plan" "this" {
   # Ensure vault exists and is fully propagated before creating plan
   # When using existing vault, data source handles the dependency
   # When creating new vault, wait for propagation
-  depends_on = local.use_existing_vault ? [
-    data.aws_backup_vault.existing
-  ] : [
+  depends_on = [
+    data.aws_backup_vault.existing,
     aws_backup_vault.this,
     time_sleep.vault_propagation
   ]
