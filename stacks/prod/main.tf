@@ -353,10 +353,9 @@ module "backup" {
   # Use existing KMS key - set via GitHub variable USW1_BACKUP_KMS_KEY_ARN
   kms_key_arn         = var.backup_kms_key_arn != "" ? var.backup_kms_key_arn : ""
   create_kms_key      = false  # Never create new KMS key, always use existing
-  # Use existing backup vault - the existing backup plan is associated with a vault
-  # If the vault name is not provided, we'll try to create it (which will fail if it exists)
-  # The vault name should match the one associated with the existing backup plan
-  existing_vault_name = var.existing_backup_vault_name != "" ? var.existing_backup_vault_name : ""
+  # Don't create backup vault - always use existing vault (vault is managed outside Terraform)
+  # If vault name is provided, use it; otherwise use "Default" (AWS default backup vault)
+  existing_vault_name = var.existing_backup_vault_name != "" ? var.existing_backup_vault_name : "Default"
   # Use existing backup plan - set via GitHub variable USW1_EXISTING_BACKUP_PLAN_ID
   existing_plan_id    = var.existing_backup_plan_id != "" ? var.existing_backup_plan_id : ""
   create_backup_plan  = var.existing_backup_plan_id == ""  # Only create plan if existing_plan_id is not provided
