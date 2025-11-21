@@ -49,42 +49,37 @@ jobs:
           PROJECT: ${{ vars.USW1_PROJECT }}
           ENVIRONMENT: ${{ vars.USW1_ENVIRONMENT }}
           AWS_REGION_VAR: ${{ vars.USW1_AWS_REGION }}
-          AZS: ${{ vars.USW1_AZS || '' }}
-          PUBLIC_SUBNET_CIDRS: ${{ vars.USW1_PUBLIC_SUBNET_CIDRS || '' }}
-          PRIVATE_SUBNET_CIDRS: ${{ vars.USW1_PRIVATE_SUBNET_CIDRS || '' }}
-          DATA_SUBNET_CIDRS: ${{ vars.USW1_DATA_SUBNET_CIDRS || '' }}
+          EXISTING_VPC_ID: ${{ vars.USW1_EXISTING_VPC_ID }}
+          EXISTING_PUBLIC_SUBNETS: ${{ vars.USW1_EXISTING_PUBLIC_SUBNETS }}
+          EXISTING_PRIVATE_SUBNETS: ${{ vars.USW1_EXISTING_PRIVATE_SUBNETS }}
+          EXISTING_DB_SUBNETS: ${{ vars.USW1_EXISTING_DB_SUBNETS || '' }}
+          EXISTING_RDS_SG_ID: ${{ vars.USW1_EXISTING_RDS_SG_ID }}
+          EXISTING_RDS_ENDPOINT: ${{ vars.USW1_EXISTING_RDS_ENDPOINT }}
+          EXISTING_RDS_IDENTIFIER: ${{ vars.USW1_EXISTING_RDS_IDENTIFIER }}
           FRONTEND_IMAGE: ${{ vars.USW1_FRONTEND_IMAGE }}
           BACKEND_IMAGE: ${{ vars.USW1_BACKEND_IMAGE }}
           FRONTEND_CERTIFICATE_ARN: ${{ vars.USW1_FRONTEND_CERTIFICATE_ARN || '' }}
           BACKEND_CERTIFICATE_ARN: ${{ vars.USW1_BACKEND_CERTIFICATE_ARN || '' }}
           WAF_WEB_ACL_ARN: ${{ vars.USW1_WAF_WEB_ACL_ARN || '' }}
-          CREATE_RDS: ${{ vars.USW1_CREATE_RDS || 'false' }}
-          DATABASE_SECRET_ARN: ${{ vars.USW1_DATABASE_SECRET_ARN || '' }}
-          DATABASE_NAME: ${{ vars.USW1_DATABASE_NAME || '' }}
-          EXISTING_RDS_IDENTIFIER: ${{ vars.USW1_EXISTING_RDS_IDENTIFIER || '' }}
-          DB_MASTER_USERNAME: ${{ vars.USW1_DB_MASTER_USERNAME || '' }}
-          DB_MASTER_PASSWORD: ${{ secrets.USW1_DB_MASTER_PASSWORD || '' }}
-          DB_ENGINE_VERSION: ${{ vars.USW1_DB_ENGINE_VERSION || '17.7' }}
-          VPC_CIDR: ${{ vars.USW1_VPC_CIDR }}
+          DATABASE_SECRET_ARN: ${{ vars.USW1_DATABASE_SECRET_ARN }}
           BACKUP_KMS_KEY_ARN: ${{ vars.USW1_BACKUP_KMS_KEY_ARN || '' }}
+          EXISTING_BACKUP_VAULT_NAME: ${{ vars.USW1_EXISTING_BACKUP_VAULT_NAME || '' }}
+          EXISTING_BACKUP_PLAN_ID: ${{ vars.USW1_EXISTING_BACKUP_PLAN_ID || '' }}
+          BACKUP_IAM_ROLE_ARN: ${{ vars.USW1_BACKUP_IAM_ROLE_ARN || '' }}
         run: |
           set -euo pipefail
           required_vars=(
             AWS_REGION_VAR
-            VPC_CIDR
-            AZS
-            PUBLIC_SUBNET_CIDRS
-            PRIVATE_SUBNET_CIDRS
+            EXISTING_VPC_ID
+            EXISTING_PUBLIC_SUBNETS
+            EXISTING_PRIVATE_SUBNETS
+            EXISTING_RDS_SG_ID
+            EXISTING_RDS_ENDPOINT
+            EXISTING_RDS_IDENTIFIER
             FRONTEND_IMAGE
             BACKEND_IMAGE
+            DATABASE_SECRET_ARN
           )
-          
-          # Conditional required vars based on CREATE_RDS
-          if [ "${CREATE_RDS}" = "true" ]; then
-            required_vars+=("DB_MASTER_USERNAME" "DB_MASTER_PASSWORD")
-          else
-            required_vars+=("DATABASE_SECRET_ARN" "DATABASE_NAME" "EXISTING_RDS_IDENTIFIER")
-          fi
 
           for var_name in "${required_vars[@]}"; do
             if [ -z "${!var_name:-}" ]; then
@@ -102,10 +97,9 @@ jobs:
             fi
           }
 
-          AZS_JSON=$(to_json_array "$AZS")
-          PUBLIC_SUBNETS_JSON=$(to_json_array "$PUBLIC_SUBNET_CIDRS")
-          PRIVATE_SUBNETS_JSON=$(to_json_array "$PRIVATE_SUBNET_CIDRS")
-          DATA_SUBNETS_JSON=$(to_json_array "$DATA_SUBNET_CIDRS")
+          EXISTING_PUBLIC_SUBNETS_JSON=$(to_json_array "$EXISTING_PUBLIC_SUBNETS")
+          EXISTING_PRIVATE_SUBNETS_JSON=$(to_json_array "$EXISTING_PRIVATE_SUBNETS")
+          EXISTING_DB_SUBNETS_JSON=$(to_json_array "$EXISTING_DB_SUBNETS")
 
           project_value=${PROJECT:-cardinal}
           environment_value=${ENVIRONMENT:-prod}
@@ -113,25 +107,16 @@ jobs:
           echo "TF_VAR_aws_region=$AWS_REGION_VAR" >> "$GITHUB_ENV"
           echo "TF_VAR_project=$project_value" >> "$GITHUB_ENV"
           echo "TF_VAR_environment=$environment_value" >> "$GITHUB_ENV"
-          echo "TF_VAR_vpc_cidr=$VPC_CIDR" >> "$GITHUB_ENV"
+          echo "TF_VAR_existing_vpc_id=$EXISTING_VPC_ID" >> "$GITHUB_ENV"
+          echo "TF_VAR_existing_public_subnets=$EXISTING_PUBLIC_SUBNETS_JSON" >> "$GITHUB_ENV"
+          echo "TF_VAR_existing_private_subnets=$EXISTING_PRIVATE_SUBNETS_JSON" >> "$GITHUB_ENV"
+          echo "TF_VAR_existing_db_subnets=$EXISTING_DB_SUBNETS_JSON" >> "$GITHUB_ENV"
+          echo "TF_VAR_existing_rds_sg_id=$EXISTING_RDS_SG_ID" >> "$GITHUB_ENV"
+          echo "TF_VAR_existing_rds_endpoint=$EXISTING_RDS_ENDPOINT" >> "$GITHUB_ENV"
+          echo "TF_VAR_existing_rds_identifier=$EXISTING_RDS_IDENTIFIER" >> "$GITHUB_ENV"
           echo "TF_VAR_frontend_image=$FRONTEND_IMAGE" >> "$GITHUB_ENV"
           echo "TF_VAR_backend_image=$BACKEND_IMAGE" >> "$GITHUB_ENV"
-          echo "TF_VAR_create_rds=$CREATE_RDS" >> "$GITHUB_ENV"
-          echo "TF_VAR_azs=$AZS_JSON" >> "$GITHUB_ENV"
-          echo "TF_VAR_public_subnet_cidrs=$PUBLIC_SUBNETS_JSON" >> "$GITHUB_ENV"
-          echo "TF_VAR_private_subnet_cidrs=$PRIVATE_SUBNETS_JSON" >> "$GITHUB_ENV"
-          echo "TF_VAR_data_subnet_cidrs=$DATA_SUBNETS_JSON" >> "$GITHUB_ENV"
-          
-          # RDS-related variables (conditional)
-          if [ "${CREATE_RDS}" = "true" ]; then
-            echo "TF_VAR_db_master_username=$DB_MASTER_USERNAME" >> "$GITHUB_ENV"
-            echo "TF_VAR_db_master_password=$DB_MASTER_PASSWORD" >> "$GITHUB_ENV"
-            echo "TF_VAR_db_engine_version=$DB_ENGINE_VERSION" >> "$GITHUB_ENV"
-          else
-            echo "TF_VAR_database_secret_arn=$DATABASE_SECRET_ARN" >> "$GITHUB_ENV"
-            echo "TF_VAR_database_name=$DATABASE_NAME" >> "$GITHUB_ENV"
-            echo "TF_VAR_existing_rds_identifier=$EXISTING_RDS_IDENTIFIER" >> "$GITHUB_ENV"
-          fi
+          echo "TF_VAR_database_secret_arn=$DATABASE_SECRET_ARN" >> "$GITHUB_ENV"
 
           append_optional() {
             local name="$1"
@@ -145,6 +130,9 @@ jobs:
           append_optional "TF_VAR_backend_certificate_arn" "$BACKEND_CERTIFICATE_ARN"
           append_optional "TF_VAR_waf_web_acl_arn" "$WAF_WEB_ACL_ARN"
           append_optional "TF_VAR_backup_kms_key_arn" "$BACKUP_KMS_KEY_ARN"
+          append_optional "TF_VAR_existing_backup_vault_name" "$EXISTING_BACKUP_VAULT_NAME"
+          append_optional "TF_VAR_existing_backup_plan_id" "$EXISTING_BACKUP_PLAN_ID"
+          append_optional "TF_VAR_backup_iam_role_arn" "$BACKUP_IAM_ROLE_ARN"
 
       - name: Init
         working-directory: ${{ env.TF_WORKING_DIR }}
